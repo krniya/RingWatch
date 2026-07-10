@@ -1,0 +1,60 @@
+### Java / Gradle / Spring Boot ###
+HELP.md
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+
+### VS Code ###
+.vscode/
+
+### Spring Boot / Local config ###
+application-local.yml
+application-local.properties
+*.log
+
+### Node / React (dashboard-ui) ###
+dashboard-ui/node_modules/
+dashboard-ui/dist/
+dashboard-ui/build/
+dashboard-ui/.env
+dashboard-ui/.env.local
+dashboard-ui/.env.*.local
+dashboard-ui/npm-debug.log*
+dashboard-ui/yarn-debug.log*
+dashboard-ui/yarn-error.log*
+dashboard-ui/.vite/
+
+### Docker ###
+docker-compose.override.yml
+
+### Env / Secrets ###
+.env
+.env.*
+!.env.example
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Misc ###
+*.tmp
+*.bak
