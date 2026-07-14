@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -91,5 +93,27 @@ class AuthServiceTest {
         assertThat(created.getUsername()).isEqualTo("newuser");
         assertThat(created.getPasswordHash()).isEqualTo("encoded-pw");
         assertThat(created.getRole()).isEqualTo(Role.ANALYST);
+    }
+
+    @Test
+    void createAccountRejectsRaceOnUniqueConstraint() {
+        when(accountRepository.findByUsername("racer")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-pw");
+        when(accountRepository.save(any(AnalystAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> authService.createAccount(
+                new CreateAccountRequest("racer", "password123", Role.ANALYST)))
+                .isInstanceOf(UsernameTakenException.class);
+    }
+
+    @Test
+    void getByIdReturnsNotFoundForMissingAccount() {
+        UUID missingId = UUID.randomUUID();
+        when(accountRepository.findById(missingId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.getById(missingId))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404");
     }
 }

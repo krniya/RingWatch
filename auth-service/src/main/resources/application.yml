@@ -15,8 +15,8 @@ spring:
 
 ringwatch:
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-this-needs-to-be-at-least-32-bytes-long}
+    secret: ${JWT_SECRET}
     expiration-ms: 3600000
   admin:
     username: ${RINGWATCH_ADMIN_USERNAME:admin}
-    password: ${RINGWATCH_ADMIN_PASSWORD:changeme123}
+    password: ${RINGWATCH_ADMIN_PASSWORD}

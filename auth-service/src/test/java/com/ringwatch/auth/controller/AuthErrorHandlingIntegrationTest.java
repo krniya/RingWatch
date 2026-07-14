@@ -1,5 +1,6 @@
 package com.ringwatch.auth.controller;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -7,7 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ringwatch.auth.controller.dto.CreateAccountRequest;
 import com.ringwatch.auth.controller.dto.LoginRequest;
+import com.ringwatch.auth.model.AnalystAccount;
 import com.ringwatch.auth.model.Role;
+import com.ringwatch.auth.security.JwtService;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,6 +28,7 @@ class AuthErrorHandlingIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JwtService jwtService;
 
     @Test
     void loginWithWrongPasswordReturnsUnauthorized() throws Exception {
@@ -46,6 +51,22 @@ class AuthErrorHandlingIntegrationTest {
     }
 
     @Test
+    void loginWithBlankFieldsReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("", ""))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void malformedJsonBodyReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("not-json-at-all"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void creatingDuplicateUsernameReturnsConflict() throws Exception {
         String adminToken = login(ADMIN_USERNAME, ADMIN_PASSWORD);
 
@@ -56,6 +77,16 @@ class AuthErrorHandlingIntegrationTest {
                                 new CreateAccountRequest(ADMIN_USERNAME, "password123", Role.ANALYST))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Username already taken: " + ADMIN_USERNAME));
+    }
+
+    @Test
+    void meWithTokenForDeletedAccountReturnsNotFound() throws Exception {
+        AnalystAccount ghost = new AnalystAccount("ghost", "hash", Role.ANALYST);
+        ghost.setId(UUID.randomUUID());
+        String tokenForMissingAccount = jwtService.generateToken(ghost);
+
+        mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + tokenForMissingAccount))
+                .andExpect(status().isNotFound());
     }
 
     private String login(String username, String password) throws Exception {

@@ -37,6 +37,13 @@ public class AdminAccountSeeder implements CommandLineRunner {
             return;
         }
 
+        if (accountRepository.findByUsername(adminUsername).isPresent()) {
+            log.warn("Cannot seed ADMIN account: username '{}' is already taken by a non-admin account. "
+                    + "Set RINGWATCH_ADMIN_USERNAME to an unused username or promote the existing account manually.",
+                    adminUsername);
+            return;
+        }
+
         AnalystAccount admin = new AnalystAccount(adminUsername, passwordEncoder.encode(adminPassword), Role.ADMIN);
         accountRepository.save(admin);
         log.info("Seeded initial ADMIN account '{}' — change the password via a real flow before any real deployment.", adminUsername);

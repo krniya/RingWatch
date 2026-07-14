@@ -6,8 +6,12 @@ import com.ringwatch.auth.controller.dto.LoginResponse;
 import com.ringwatch.auth.model.AnalystAccount;
 import com.ringwatch.auth.repository.AccountRepository;
 import com.ringwatch.auth.security.JwtService;
+import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
@@ -44,11 +48,15 @@ public class AuthService {
                 passwordEncoder.encode(request.password()),
                 request.role());
 
-        return accountRepository.save(account);
+        try {
+            return accountRepository.save(account);
+        } catch (DataIntegrityViolationException e) {
+            throw new UsernameTakenException(request.username());
+        }
     }
 
-    public AnalystAccount getById(java.util.UUID id) {
+    public AnalystAccount getById(UUID id) {
         return accountRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found: " + id));
     }
 }
