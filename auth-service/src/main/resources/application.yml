@@ -1,0 +1,22 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ringwatch_auth
+    username: ringwatch
+    password: ringwatch
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+ringwatch:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: 3600000
+  admin:
+    username: ${RINGWATCH_ADMIN_USERNAME:admin}
+    password: ${RINGWATCH_ADMIN_PASSWORD}

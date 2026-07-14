@@ -1,10 +1,13 @@
-### Java / Gradle / Spring Boot ###
+### Java / Gradle / Maven / Spring Boot ###
 HELP.md
 .gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
 
 ### STS ###
 .apt_generated
@@ -58,3 +61,5 @@ Thumbs.db
 ### Misc ###
 *.tmp
 *.bak
+
+ringWatch.md

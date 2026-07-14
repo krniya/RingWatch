@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ringwatch-postgres
+    environment:
+      POSTGRES_USER: ringwatch
+      POSTGRES_PASSWORD: ringwatch
+      POSTGRES_DB: ringwatch_auth
+    ports:
+      - "5432:5432"
+    volumes:
+      - ringwatch-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ringwatch -d ringwatch_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ringwatch-postgres-data:
