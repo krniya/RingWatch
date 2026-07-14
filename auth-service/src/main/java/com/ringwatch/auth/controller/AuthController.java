@@ -38,7 +38,6 @@ public class AuthController {
     @PostMapping("/auth/accounts")
     @ResponseStatus(HttpStatus.CREATED)
     public AccountResponse createAccount(@Valid @RequestBody CreateAccountRequest request) {
-        // TODO: restrict to ROLE_ADMIN once role-based method security is wired up
         return AccountResponse.from(authService.createAccount(request));
     }
 }
