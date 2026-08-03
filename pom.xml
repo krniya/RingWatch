@@ -23,6 +23,7 @@
         <module>common-lib</module>
         <module>auth-service</module>
         <module>ingestion-service</module>
+        <module>api-gateway</module>
     </modules>
 
     <dependencyManagement>

@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth/**
+        - id: ingestion-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/transactions/**
+
+ringwatch:
+  jwt:
+    secret: ${JWT_SECRET}
+  rate-limit:
+    limit: 20
+    window: 10s
