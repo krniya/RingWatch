@@ -20,7 +20,9 @@
     </properties>
 
     <modules>
+        <module>common-lib</module>
         <module>auth-service</module>
+        <module>ingestion-service</module>
     </modules>
 
     <dependencyManagement>
