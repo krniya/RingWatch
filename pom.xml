@@ -24,6 +24,7 @@
         <module>auth-service</module>
         <module>ingestion-service</module>
         <module>api-gateway</module>
+        <module>enrichment-service</module>
     </modules>
 
     <dependencyManagement>
