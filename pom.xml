@@ -25,6 +25,7 @@
         <module>ingestion-service</module>
         <module>api-gateway</module>
         <module>enrichment-service</module>
+        <module>ai-risk-scoring-service</module>
     </modules>
 
     <dependencyManagement>
