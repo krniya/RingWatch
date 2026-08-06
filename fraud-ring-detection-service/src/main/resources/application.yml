@@ -1,0 +1,50 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: fraud-ring-detection-service
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: fraud-ring-detection-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.ringwatch.common.event
+        spring.json.value.default.type: com.ringwatch.common.event.EnrichedTransactionEvent
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+
+ringwatch:
+  fraud-ring:
+    min-cluster-size: 3
+  ai:
+    api-key: ${ANTHROPIC_API_KEY:}
+    base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+    model: claude-haiku-4-5
+    timeout-seconds: 8
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      ringExplainer:
+        sliding-window-type: count_based
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      ringExplainer:
+        max-attempts: 2
+        wait-duration: 500ms
