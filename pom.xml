@@ -26,6 +26,7 @@
         <module>api-gateway</module>
         <module>enrichment-service</module>
         <module>ai-risk-scoring-service</module>
+        <module>decision-engine</module>
     </modules>
 
     <dependencyManagement>
