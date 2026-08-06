@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:ringwatch_decisions;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: decision-engine
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.ringwatch.common.event
+        spring.json.value.default.type: com.ringwatch.common.event.ScoredTransactionEvent
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+ringwatch:
+  decision:
+    block-threshold: 0.75
+    flag-threshold: 0.40
+    queue-capacity: 1000
