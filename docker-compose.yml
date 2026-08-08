@@ -33,6 +33,15 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:19093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      # Single-broker cluster - the internal __consumer_offsets/__transaction_state topics
+      # default to replication factor 3, which can never succeed with only 1 broker. Left
+      # unset, every consumer group's coordinator lookup hangs and retries forever (produce
+      # and topic metadata calls still work, since they don't need these internal topics -
+      # this is why the failure mode looks like "some requests work, group coordination
+      # doesn't" rather than the broker being down outright).
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
