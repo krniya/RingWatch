@@ -28,6 +28,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/accounts").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);

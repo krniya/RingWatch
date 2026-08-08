@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.test.context.EmbeddedKafka;
@@ -25,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@AutoConfigureObservability
 @EmbeddedKafka(
         partitions = 1,
         topics = {Topics.TRANSACTIONS_RAW, Topics.TRANSACTIONS_SCORED, Topics.TRANSACTIONS_DECIDED})
@@ -114,5 +116,11 @@ class AuditControllerIntegrationTest {
     void requestWithBlankBearerTokenIsRejectedNotErrored() throws Exception {
         mockMvc.perform(get("/audit/tx-1").header("Authorization", "Bearer "))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void actuatorHealthAndPrometheusEndpointsAreAccessibleWithoutAToken() throws Exception {
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isOk());
     }
 }

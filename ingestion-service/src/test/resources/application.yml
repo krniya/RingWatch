@@ -11,6 +11,12 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 ringwatch:
   jwt:
     secret: test-only-secret-key-at-least-32-bytes-long-for-hs256

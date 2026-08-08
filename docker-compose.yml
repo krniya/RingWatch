@@ -39,5 +39,51 @@ services:
       timeout: 10s
       retries: 5
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: ringwatch-jaeger
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: ringwatch-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ringwatch-prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: ringwatch-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ringwatch-grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
 volumes:
   ringwatch-postgres-data:
+  ringwatch-prometheus-data:
+  ringwatch-grafana-data:
