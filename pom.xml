@@ -29,6 +29,7 @@
         <module>decision-engine</module>
         <module>fraud-ring-detection-service</module>
         <module>audit-service</module>
+        <module>notification-service</module>
     </modules>
 
     <dependencyManagement>
