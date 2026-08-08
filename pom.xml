@@ -28,6 +28,7 @@
         <module>ai-risk-scoring-service</module>
         <module>decision-engine</module>
         <module>fraud-ring-detection-service</module>
+        <module>audit-service</module>
     </modules>
 
     <dependencyManagement>
