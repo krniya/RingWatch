@@ -13,6 +13,18 @@ spring:
       ddl-auto: update
     open-in-view: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+
 ringwatch:
   jwt:
     secret: ${JWT_SECRET}

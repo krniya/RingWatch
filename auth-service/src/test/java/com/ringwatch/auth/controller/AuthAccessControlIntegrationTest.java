@@ -12,6 +12,7 @@ import com.ringwatch.auth.controller.dto.LoginRequest;
 import com.ringwatch.auth.model.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@AutoConfigureObservability
 class AuthAccessControlIntegrationTest {
 
     private static final String ADMIN_USERNAME = "admin";
@@ -26,6 +28,18 @@ class AuthAccessControlIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+
+    /**
+     * {@code @AutoConfigureObservability} counteracts Spring Boot Test's default behavior of
+     * disabling metrics/tracing export in test contexts (otherwise {@code PrometheusScrapeEndpoint}
+     * never registers here even though it does in a real deployment) - this test exists to verify
+     * the SecurityConfig authorization rule, not observability wiring itself.
+     */
+    @Test
+    void actuatorHealthAndPrometheusEndpointsAreAccessibleWithoutAToken() throws Exception {
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isOk());
+    }
 
     @Test
     void unauthenticatedRequestToCreateAccountIsRejected() throws Exception {

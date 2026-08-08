@@ -9,6 +9,12 @@ spring:
       ddl-auto: create-drop
     open-in-view: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 ringwatch:
   jwt:
     secret: test-only-secret-key-at-least-32-bytes-long-for-hs256
