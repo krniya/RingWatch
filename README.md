@@ -196,6 +196,19 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8087/audit/tx-1
 - **Grafana** (http://localhost:3000) — the Prometheus datasource is pre-provisioned; build a
   dashboard against any of the scraped `job` labels (one per service).
 
+### 5. Run the dashboard
+
+With `api-gateway`, `auth-service`, and `audit-service` running (step 3 above):
+
+```bash
+cd dashboard-ui
+npm install
+npm run dev   # http://localhost:5173
+```
+
+Log in with the seeded admin account (`admin` / `$RINGWATCH_ADMIN_PASSWORD`). See
+[dashboard-ui/README.md](dashboard-ui/README.md) for what's built vs. still planned.
+
 ## Testing
 
 ```bash
@@ -221,6 +234,7 @@ ringwatch/
 ├── fraud-ring-detection-service/
 ├── audit-service/
 ├── notification-service/
+├── dashboard-ui/                  analyst frontend (Vite/React, not a Maven module)
 ├── docker/
 │   ├── initdb/                    per-service database creation scripts
 │   ├── prometheus/                scrape config
@@ -231,5 +245,6 @@ ringwatch/
 ## Status
 
 Phases 1–4 (foundations, core pipeline, fraud-ring detection, audit/notification/observability)
-are complete. Phase 5 (analyst dashboard UI) and Phase 6 (Testcontainers, reconciliation job, load
-testing) are next.
+are complete. Phase 5 (analyst dashboard UI) is in progress — the shell, login, and live
+transaction feed are built (`dashboard-ui/`); the review queue, override action, and fraud ring
+graph are follow-up slices. Phase 6 (Testcontainers, reconciliation job, load testing) is next.

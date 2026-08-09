@@ -1,0 +1,120 @@
+@import "tailwindcss";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Tactical Telemetry theme - a dark, dense, zero-radius design language for an operational
+ * fraud-monitoring console, not a marketing site. See dashboard-ui/README.md for the rationale.
+ * Semantic color (red/amber/green) is reserved for decision outcomes only; everything else is
+ * graphite/off-white. IBM Plex Mono is used for every number, timestamp, and identifier.
+ *
+ * shadcn/ui's semantic tokens (--background, --primary, --border, etc.) are remapped below onto
+ * this palette so every generated component inherits the theme automatically. The app is
+ * permanently dark - there is no light mode or .dark toggle.
+ */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --color-bg: #0a0b0d;
+  --color-panel: #111318;
+  --color-panel-raised: #16181f;
+  --color-border: #23262e;
+  --color-border-strong: #34384a;
+
+  --color-text: #e4e6eb;
+  --color-text-muted: #8b92a3;
+  --color-text-faint: #565c6b;
+
+  --color-accent: #22d3ee;
+  --color-accent-muted: #0e7490;
+
+  --color-approve: #22c55e;
+  --color-approve-muted: #14532d;
+  --color-flag: #f59e0b;
+  --color-flag-muted: #78350f;
+  --color-block: #ef4444;
+  --color-block-muted: #7f1d1d;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+}
+
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-panel);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-bg);
+  --secondary: var(--color-panel-raised);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-panel);
+  --muted-foreground: var(--color-text-muted);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-block);
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-accent);
+  --radius: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-muted);
+    color: var(--color-text);
+  }
+}
