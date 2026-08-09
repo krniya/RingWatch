@@ -28,11 +28,14 @@ class GatewayRoutingIntegrationTest {
 
     private static final AtomicReference<Headers> LAST_AUTH_REQUEST_HEADERS = new AtomicReference<>();
     private static final AtomicReference<Headers> LAST_INGESTION_REQUEST_HEADERS = new AtomicReference<>();
+    private static final AtomicReference<Headers> LAST_AUDIT_REQUEST_HEADERS = new AtomicReference<>();
 
     private static final HttpServer AUTH_STUB =
             startStub("/auth/login", "auth-stub-response", LAST_AUTH_REQUEST_HEADERS);
     private static final HttpServer INGESTION_STUB =
             startStub("/transactions", "ingestion-stub-response", LAST_INGESTION_REQUEST_HEADERS);
+    private static final HttpServer AUDIT_STUB =
+            startStub("/audit", "audit-stub-response", LAST_AUDIT_REQUEST_HEADERS);
 
     @Autowired private WebTestClient webTestClient;
 
@@ -67,12 +70,17 @@ class GatewayRoutingIntegrationTest {
         registry.add("spring.cloud.gateway.routes[1].id", () -> "ingestion-service");
         registry.add("spring.cloud.gateway.routes[1].uri", () -> "http://localhost:" + INGESTION_STUB.getAddress().getPort());
         registry.add("spring.cloud.gateway.routes[1].predicates[0]", () -> "Path=/transactions/**");
+
+        registry.add("spring.cloud.gateway.routes[2].id", () -> "audit-service");
+        registry.add("spring.cloud.gateway.routes[2].uri", () -> "http://localhost:" + AUDIT_STUB.getAddress().getPort());
+        registry.add("spring.cloud.gateway.routes[2].predicates[0]", () -> "Path=/audit/**");
     }
 
     @AfterAll
     static void stopStubs() {
         AUTH_STUB.stop(0);
         INGESTION_STUB.stop(0);
+        AUDIT_STUB.stop(0);
     }
 
     private String validToken() {
@@ -169,6 +177,25 @@ class GatewayRoutingIntegrationTest {
     void transactionsRouteRejectsTokenSignedWithWrongKey() {
         webTestClient.get().uri("/transactions")
                 .header("Authorization", "Bearer " + tokenSignedWithWrongKey())
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void auditRouteAcceptsAValidTokenAndForwardsIdentityHeaders() {
+        webTestClient.get().uri("/audit")
+                .header("Authorization", "Bearer " + validToken())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).isEqualTo("audit-stub-response");
+
+        Headers forwarded = LAST_AUDIT_REQUEST_HEADERS.get();
+        assertThatHeaderHasSingleValue(forwarded, "X-User-Role", "SERVICE");
+    }
+
+    @Test
+    void auditRouteRejectsRequestWithoutToken() {
+        webTestClient.get().uri("/audit")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }

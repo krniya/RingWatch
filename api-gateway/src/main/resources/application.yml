@@ -15,6 +15,24 @@ spring:
           uri: http://localhost:8082
           predicates:
             - Path=/transactions/**
+        - id: audit-service
+          uri: http://localhost:8087
+          predicates:
+            - Path=/audit/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - http://localhost:5173
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - Authorization
+              - Content-Type
 
 management:
   endpoints:
