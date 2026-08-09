@@ -74,4 +74,20 @@ class AuditLogRepositoryTest {
         assertThat(repository.search(null, from, to)).hasSize(1);
         assertThat(repository.search(null, to, to.plus(1, ChronoUnit.HOURS))).isEmpty();
     }
+
+    @Test
+    void searchWithOnlyFromSetDoesNotThrow() {
+        AuditLog inRange = repository.saveAndFlush(new AuditLog("tx-1", AuditEventType.CREATED, "{}", null));
+        Instant from = inRange.getRecordedAt().minus(1, ChronoUnit.HOURS);
+
+        assertThat(repository.search(null, from, null)).hasSize(1);
+    }
+
+    @Test
+    void searchWithOnlyToSetDoesNotThrow() {
+        AuditLog inRange = repository.saveAndFlush(new AuditLog("tx-1", AuditEventType.CREATED, "{}", null));
+        Instant to = inRange.getRecordedAt().plus(1, ChronoUnit.HOURS);
+
+        assertThat(repository.search(null, null, to)).hasSize(1);
+    }
 }
