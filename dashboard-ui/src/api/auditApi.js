@@ -13,3 +13,10 @@ export function fetchAuditLog(filters = {}, token) {
   const query = params.toString()
   return apiFetch(`/audit${query ? `?${query}` : ''}`, { token })
 }
+
+/**
+ * @returns {Promise<Array<{eventId: string, transactionId: string, eventType: 'CREATED'|'SCORED'|'DECIDED'|'OVERRIDDEN', payload: unknown, userId: string|null, recordedAt: string}>>}
+ */
+export function fetchAuditTrail(transactionId, token) {
+  return apiFetch(`/audit/${transactionId}`, { token })
+}

@@ -1,23 +1,26 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "shadcn/tailwind.css";
 
 /*
- * Tactical Telemetry theme - a dark, dense, zero-radius design language for an operational
- * fraud-monitoring console, not a marketing site. See dashboard-ui/README.md for the rationale.
+ * Tactical Telemetry theme - a dark, dense operational-console design language for a
+ * fraud-monitoring dashboard, not a marketing site. See dashboard-ui/README.md for the rationale.
  * Semantic color (red/amber/green) is reserved for decision outcomes only; everything else is
  * graphite/off-white. IBM Plex Mono is used for every number, timestamp, and identifier.
+ *
+ * Softened from the original zero-radius/no-shadow brutalist execution toward a more
+ * conventional modern dark dashboard: small radius, a tinted elevation scale, and a restrained
+ * glass effect reserved for sticky in-page headers. Table rows stay flat (a per-row border-b,
+ * no radius/shadow) at high density - only panels/tiles/dialogs get the softer treatment.
  *
  * shadcn/ui's semantic tokens (--background, --primary, --border, etc.) are remapped below onto
  * this palette so every generated component inherits the theme automatically. The app is
  * permanently dark - there is no light mode or .dark toggle.
  */
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --color-bg: #0a0b0d;
@@ -39,6 +42,20 @@
   --color-flag-muted: #78350f;
   --color-block: #ef4444;
   --color-block-muted: #7f1d1d;
+
+  /* Larger radius for panels/tiles/dialogs - separate from shadcn's --radius so table rows and
+     badges can deliberately opt out of it (see StatusBadge/TransactionRow). */
+  --radius-panel: 14px;
+
+  /* Tinted to --color-bg (never pure black-on-dark). 1=row/control hover, 2=KPI tiles/toasts/
+     sticky headers, 3=Sidebar edge, 4=the audit-trail drawer (deepest surface in the app). */
+  --shadow-elevation-1: 0 1px 2px 0 rgba(4, 6, 12, 0.5);
+  --shadow-elevation-2:
+    0 4px 12px -2px rgba(4, 6, 12, 0.55), 0 1px 3px 0 rgba(4, 6, 12, 0.4);
+  --shadow-elevation-3:
+    0 12px 28px -6px rgba(4, 6, 12, 0.6), 0 2px 6px 0 rgba(4, 6, 12, 0.35);
+  --shadow-elevation-4:
+    0 24px 60px -12px rgba(4, 6, 12, 0.65), 0 4px 12px 0 rgba(4, 6, 12, 0.4);
 }
 
 @theme inline {
@@ -87,7 +104,10 @@
   --border: var(--color-border);
   --input: var(--color-border-strong);
   --ring: var(--color-accent);
-  --radius: 0px;
+  --radius: 8px;
+
+  --glass-bg: rgba(17, 19, 24, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
 }
 
 @layer base {
@@ -116,5 +136,18 @@
   ::selection {
     background-color: var(--color-accent-muted);
     color: var(--color-text);
+  }
+}
+
+@layer utilities {
+  /* Reserved for sticky in-page headers that genuinely have content scrolling behind them -
+     never the Sidebar (nothing scrolls behind it) and never scrolling containers themselves. */
+  .glass-surface {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow:
+      var(--shadow-elevation-2),
+      inset 0 1px 0 var(--glass-border);
   }
 }

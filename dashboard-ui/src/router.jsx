@@ -3,6 +3,8 @@ import { useAuth } from '@/context/AuthContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { LoginPage } from '@/pages/LoginPage'
 import { FeedPage } from '@/pages/FeedPage'
+import { ReviewQueuePage } from '@/pages/ReviewQueuePage'
+import { FraudRingsPage } from '@/pages/FraudRingsPage'
 
 function RequireAuth() {
   const { isAuthenticated } = useAuth()
@@ -25,6 +27,8 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <Navigate to="/feed" replace /> },
           { path: '/feed', element: <FeedPage /> },
+          { path: '/review', element: <ReviewQueuePage /> },
+          { path: '/rings', element: <FraudRingsPage /> },
           { path: '*', element: <Navigate to="/feed" replace /> },
         ],
       },

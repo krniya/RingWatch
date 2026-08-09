@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
-import { useLiveTransactions } from '@/hooks/useLiveTransactions'
-import { TransactionFeedTable } from '@/components/feed/TransactionFeedTable'
-import { FeedStatsBar } from '@/components/feed/FeedStatsBar'
-import { SearchInput } from '@/components/shared/SearchInput'
+import { useReviewQueue } from '@/hooks/useReviewQueue'
+import { ReviewQueueTable } from '@/components/review/ReviewQueueTable'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { SearchInput } from '@/components/shared/SearchInput'
 import { AuditTrailDrawer } from '@/components/audit/AuditTrailDrawer'
 import { matchesQuery } from '@/lib/transactions'
 
-export function FeedPage() {
-  const { transactions, isLoading, isError } = useLiveTransactions()
+export function ReviewQueuePage() {
+  const { transactions, isLoading, isError } = useReviewQueue()
   const [query, setQuery] = useState('')
   const [selectedTransactionId, setSelectedTransactionId] = useState(null)
 
@@ -20,24 +19,11 @@ export function FeedPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
-        <PageHeader
-          title="Live Transaction Feed"
-          subtitle={
-            <p className="flex items-center gap-1.5">
-              <span className="relative flex size-1.5">
-                <span className="motion-safe:absolute motion-safe:inline-flex motion-safe:size-full motion-safe:animate-ping motion-safe:rounded-full motion-safe:bg-approve motion-safe:opacity-75" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-approve" />
-              </span>
-              Live — polling every 5s
-            </p>
-          }
-        >
+        <PageHeader title="Review Queue" subtitle="Flagged and blocked transactions — last 24h">
           <SearchInput value={query} onChange={setQuery} placeholder="Search transaction or account…" />
         </PageHeader>
 
-        <FeedStatsBar transactions={transactions} isLoading={isLoading} />
-
-        <TransactionFeedTable
+        <ReviewQueueTable
           transactions={filtered}
           isLoading={isLoading}
           isError={isError}
