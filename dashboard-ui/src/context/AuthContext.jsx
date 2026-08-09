@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { fetchCurrentAccount, login as loginRequest } from '@/api/authApi'
 import { onUnauthorized } from '@/api/client'
 
@@ -19,11 +20,15 @@ function readStoredSession() {
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(readStoredSession)
+  const queryClient = useQueryClient()
 
   const logout = useCallback(() => {
     sessionStorage.removeItem(STORAGE_KEY)
     setSession(null)
-  }, [])
+    // Otherwise a re-login (same tab, same or different analyst) can render the
+    // outgoing session's cached feed data before the first refetch resolves.
+    queryClient.clear()
+  }, [queryClient])
 
   const login = useCallback(async (username, password) => {
     const { token, expiresInSeconds } = await loginRequest(username, password)
@@ -39,7 +44,10 @@ export function AuthProvider({ children }) {
     return next
   }, [])
 
-  useEffect(() => onUnauthorized(logout), [logout])
+  useEffect(() => {
+    onUnauthorized(logout)
+    return () => onUnauthorized(null)
+  }, [logout])
 
   const value = useMemo(
     () => ({

@@ -3,6 +3,10 @@ import { fetchAuditLog } from '@/api/auditApi'
 import { useAuth } from '@/context/AuthContext'
 
 const POLL_INTERVAL_MS = 5000
+// "Live feed" means recent activity, not the full audit history - the backend has no
+// pagination, so bounding the window keeps payload size and client-side folding flat
+// as total transaction volume grows over the system's lifetime.
+const FEED_WINDOW_MS = 6 * 60 * 60 * 1000
 
 // Flattens the audit log (one entry per lifecycle event) into one row per
 // transaction, keyed on its most recent state. Each event's payload is a
@@ -40,15 +44,20 @@ export function useLiveTransactions() {
 
   const query = useQuery({
     queryKey: ['audit-log'],
-    queryFn: () => fetchAuditLog({}, session?.token),
+    queryFn: () => {
+      const from = new Date(Date.now() - FEED_WINDOW_MS).toISOString()
+      return fetchAuditLog({ from }, session?.token)
+    },
     enabled: Boolean(session?.token),
     refetchInterval: POLL_INTERVAL_MS,
   })
 
   return {
     transactions: query.data ? reduceToTransactions(query.data) : [],
+    // A transient poll failure shouldn't blank out a feed that already has good data -
+    // only surface the error state when there's nothing to show in its place.
     isLoading: query.isLoading,
-    isError: query.isError,
+    isError: query.isError && !query.data,
     error: query.error,
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { ApiError } from '@/api/client'
 import { Button } from '@/components/ui/button'
 
 export function LoginPage() {
@@ -21,8 +22,12 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await login(username, password)
-    } catch {
-      setError('Invalid username or password.')
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 401
+          ? 'Invalid username or password.'
+          : 'Sign-in failed. Please try again.',
+      )
     } finally {
       setIsSubmitting(false)
     }
