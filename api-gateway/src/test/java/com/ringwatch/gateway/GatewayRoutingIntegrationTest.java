@@ -30,6 +30,7 @@ class GatewayRoutingIntegrationTest {
     private static final AtomicReference<Headers> LAST_INGESTION_REQUEST_HEADERS = new AtomicReference<>();
     private static final AtomicReference<Headers> LAST_AUDIT_REQUEST_HEADERS = new AtomicReference<>();
     private static final AtomicReference<Headers> LAST_OVERRIDE_REQUEST_HEADERS = new AtomicReference<>();
+    private static final AtomicReference<Headers> LAST_FRAUD_RINGS_REQUEST_HEADERS = new AtomicReference<>();
 
     private static final HttpServer AUTH_STUB =
             startStub("/auth/login", "auth-stub-response", LAST_AUTH_REQUEST_HEADERS);
@@ -39,6 +40,8 @@ class GatewayRoutingIntegrationTest {
             startStub("/audit", "audit-stub-response", LAST_AUDIT_REQUEST_HEADERS);
     private static final HttpServer DECISION_OVERRIDE_STUB =
             startStub("/transactions", "override-stub-response", LAST_OVERRIDE_REQUEST_HEADERS);
+    private static final HttpServer FRAUD_RINGS_STUB =
+            startStub("/fraud-rings", "fraud-rings-stub-response", LAST_FRAUD_RINGS_REQUEST_HEADERS);
 
     @Autowired private WebTestClient webTestClient;
 
@@ -85,6 +88,11 @@ class GatewayRoutingIntegrationTest {
         registry.add("spring.cloud.gateway.routes[3].id", () -> "audit-service");
         registry.add("spring.cloud.gateway.routes[3].uri", () -> "http://localhost:" + AUDIT_STUB.getAddress().getPort());
         registry.add("spring.cloud.gateway.routes[3].predicates[0]", () -> "Path=/audit/**");
+
+        registry.add("spring.cloud.gateway.routes[4].id", () -> "fraud-ring-detection-service");
+        registry.add("spring.cloud.gateway.routes[4].uri",
+                () -> "http://localhost:" + FRAUD_RINGS_STUB.getAddress().getPort());
+        registry.add("spring.cloud.gateway.routes[4].predicates[0]", () -> "Path=/fraud-rings/**");
     }
 
     @AfterAll
@@ -93,6 +101,7 @@ class GatewayRoutingIntegrationTest {
         INGESTION_STUB.stop(0);
         AUDIT_STUB.stop(0);
         DECISION_OVERRIDE_STUB.stop(0);
+        FRAUD_RINGS_STUB.stop(0);
     }
 
     private String validToken() {
@@ -240,6 +249,25 @@ class GatewayRoutingIntegrationTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).isEqualTo("ingestion-stub-response");
+    }
+
+    @Test
+    void fraudRingsRouteAcceptsAValidTokenAndForwardsIdentityHeaders() {
+        webTestClient.get().uri("/fraud-rings")
+                .header("Authorization", "Bearer " + validToken())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).isEqualTo("fraud-rings-stub-response");
+
+        Headers forwarded = LAST_FRAUD_RINGS_REQUEST_HEADERS.get();
+        assertThatHeaderHasSingleValue(forwarded, "X-User-Role", "SERVICE");
+    }
+
+    @Test
+    void fraudRingsRouteRejectsRequestWithoutToken() {
+        webTestClient.get().uri("/fraud-rings")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     private static void assertThatHeaderHasSingleValue(Headers headers, String name, String expectedValue) {
