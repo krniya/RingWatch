@@ -2,6 +2,7 @@ package com.ringwatch.decision.service;
 
 import com.ringwatch.common.event.DecisionEvent;
 import com.ringwatch.common.event.DecisionOutcome;
+import com.ringwatch.common.event.DecisionOverriddenEvent;
 import com.ringwatch.common.event.ScoredTransactionEvent;
 import com.ringwatch.common.kafka.Topics;
 import com.ringwatch.decision.model.Decision;
@@ -11,8 +12,10 @@ import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Idempotent on {@code transactionId} the same way {@code IngestionService} is: if a decision
@@ -27,14 +30,17 @@ public class DecisionService {
     private final RuleBasedDecisionEngine decisionEngine;
     private final DecisionRepository decisionRepository;
     private final KafkaTemplate<String, DecisionEvent> kafkaTemplate;
+    private final KafkaTemplate<String, DecisionOverriddenEvent> overriddenEventKafkaTemplate;
 
     public DecisionService(
             RuleBasedDecisionEngine decisionEngine,
             DecisionRepository decisionRepository,
-            KafkaTemplate<String, DecisionEvent> kafkaTemplate) {
+            KafkaTemplate<String, DecisionEvent> kafkaTemplate,
+            KafkaTemplate<String, DecisionOverriddenEvent> overriddenEventKafkaTemplate) {
         this.decisionEngine = decisionEngine;
         this.decisionRepository = decisionRepository;
         this.kafkaTemplate = kafkaTemplate;
+        this.overriddenEventKafkaTemplate = overriddenEventKafkaTemplate;
     }
 
     public DecisionEvent decideAndPublish(ScoredTransactionEvent event) {
@@ -65,6 +71,34 @@ public class DecisionService {
                     }
                 });
         return decisionEvent;
+    }
+
+    /**
+     * FR22: an analyst overrides a previously-decided transaction's outcome. {@code reason} is
+     * stored on the event both as the generic {@code reason} field (so the dashboard's
+     * payload-folding view updates the transaction's displayed reason like any other event) and
+     * as {@code overrideReason} (the field name the audit-trail drawer's OVERRIDDEN rendering
+     * specifically looks for) - both carry the same value, there's only one reason to record.
+     */
+    public Decision override(String transactionId, DecisionOutcome outcome, String reason, String overriddenBy) {
+        Decision decision = decisionRepository.findByTransactionId(transactionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No decision found for transaction '" + transactionId + "'"));
+
+        decision.applyOverride(overriddenBy, outcome, reason);
+        decisionRepository.save(decision);
+
+        DecisionOverriddenEvent event = new DecisionOverriddenEvent(
+                transactionId, outcome, reason, overriddenBy, reason, Instant.now());
+        overriddenEventKafkaTemplate.send(Topics.TRANSACTIONS_OVERRIDDEN, transactionId, event)
+                .whenComplete((sendResult, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish override for transaction '{}' to {}",
+                                transactionId, Topics.TRANSACTIONS_OVERRIDDEN, ex);
+                    }
+                });
+
+        return decision;
     }
 
     private static DecisionEvent toEvent(

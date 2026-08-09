@@ -11,6 +11,11 @@ spring:
           uri: http://localhost:8081
           predicates:
             - Path=/auth/**
+        - id: decision-engine-override
+          uri: http://localhost:8085
+          predicates:
+            - Path=/transactions/*/override
+            - Method=POST
         - id: ingestion-service
           uri: http://localhost:8082
           predicates:

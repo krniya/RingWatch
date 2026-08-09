@@ -1,6 +1,7 @@
 package com.ringwatch.decision.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.ringwatch.common.event.DecisionEvent;
 import com.ringwatch.common.event.DecisionOutcome;
+import com.ringwatch.common.event.DecisionOverriddenEvent;
 import com.ringwatch.common.event.ScoredTransactionEvent;
 import com.ringwatch.common.event.ScoringMethod;
 import com.ringwatch.common.kafka.Topics;
@@ -28,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class DecisionServiceTest {
@@ -35,6 +38,7 @@ class DecisionServiceTest {
     @Mock private RuleBasedDecisionEngine decisionEngine;
     @Mock private DecisionRepository decisionRepository;
     @Mock private KafkaTemplate<String, DecisionEvent> kafkaTemplate;
+    @Mock private KafkaTemplate<String, DecisionOverriddenEvent> overriddenEventKafkaTemplate;
 
     private DecisionService decisionService;
 
@@ -48,7 +52,7 @@ class DecisionServiceTest {
 
     @Test
     void decideAndPublishPersistsAndPublishesNewDecision() {
-        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate);
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
         ScoredTransactionEvent event = event("tx-1");
         when(decisionRepository.findByTransactionId("tx-1")).thenReturn(Optional.empty());
         when(decisionEngine.decide(event)).thenReturn(new DecisionResult(DecisionOutcome.FLAG, "flagged reason"));
@@ -69,7 +73,7 @@ class DecisionServiceTest {
 
     @Test
     void decideAndPublishSkipsRedecisionForAlreadyDecidedTransaction() {
-        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate);
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
         Decision existing = new Decision("tx-2", DecisionOutcome.BLOCK, "already blocked");
         when(decisionRepository.findByTransactionId("tx-2")).thenReturn(Optional.of(existing));
 
@@ -84,7 +88,7 @@ class DecisionServiceTest {
 
     @Test
     void decideAndPublishRecoversFromConcurrentInsertRace() {
-        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate);
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
         ScoredTransactionEvent event = event("tx-3");
         Decision racedWinner = new Decision("tx-3", DecisionOutcome.APPROVE, "decided by the other thread");
         when(decisionRepository.findByTransactionId("tx-3"))
@@ -102,7 +106,7 @@ class DecisionServiceTest {
 
     @Test
     void decideAndPublishDoesNotThrowWhenKafkaPublishFails() {
-        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate);
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
         ScoredTransactionEvent event = event("tx-4");
         when(decisionRepository.findByTransactionId("tx-4")).thenReturn(Optional.empty());
         when(decisionEngine.decide(event)).thenReturn(new DecisionResult(DecisionOutcome.APPROVE, "fine"));
@@ -114,5 +118,42 @@ class DecisionServiceTest {
         DecisionEvent published = decisionService.decideAndPublish(event);
 
         assertThat(published.outcome()).isEqualTo(DecisionOutcome.APPROVE);
+    }
+
+    @Test
+    void overridePersistsTheNewOutcomeAndPublishesAnOverriddenEvent() {
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
+        Decision existing = new Decision("tx-5", DecisionOutcome.BLOCK, "originally blocked");
+        when(decisionRepository.findByTransactionId("tx-5")).thenReturn(Optional.of(existing));
+        when(decisionRepository.save(any(Decision.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(overriddenEventKafkaTemplate.send(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+
+        Decision result = decisionService.override("tx-5", DecisionOutcome.APPROVE, "false positive", "alice");
+
+        assertThat(result.getOutcome()).isEqualTo(DecisionOutcome.APPROVE);
+        assertThat(result.getOverriddenBy()).isEqualTo("alice");
+        assertThat(result.getOverrideReason()).isEqualTo("false positive");
+
+        ArgumentCaptor<DecisionOverriddenEvent> eventCaptor = ArgumentCaptor.forClass(DecisionOverriddenEvent.class);
+        verify(overriddenEventKafkaTemplate).send(eq(Topics.TRANSACTIONS_OVERRIDDEN), eq("tx-5"), eventCaptor.capture());
+        DecisionOverriddenEvent published = eventCaptor.getValue();
+        assertThat(published.outcome()).isEqualTo(DecisionOutcome.APPROVE);
+        assertThat(published.reason()).isEqualTo("false positive");
+        assertThat(published.overriddenBy()).isEqualTo("alice");
+        assertThat(published.overrideReason()).isEqualTo("false positive");
+    }
+
+    @Test
+    void overrideThrowsNotFoundForAnUndecidedTransaction() {
+        decisionService = new DecisionService(decisionEngine, decisionRepository, kafkaTemplate, overriddenEventKafkaTemplate);
+        when(decisionRepository.findByTransactionId("tx-unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                decisionService.override("tx-unknown", DecisionOutcome.APPROVE, "reason", "alice"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("tx-unknown");
+
+        verify(decisionRepository, never()).save(any());
+        verify(overriddenEventKafkaTemplate, never()).send(any(), any(), any());
     }
 }

@@ -7,6 +7,7 @@ import com.ringwatch.audit.model.AuditEventType;
 import com.ringwatch.audit.repository.AuditLogRepository;
 import com.ringwatch.common.event.DecisionEvent;
 import com.ringwatch.common.event.DecisionOutcome;
+import com.ringwatch.common.event.DecisionOverriddenEvent;
 import com.ringwatch.common.event.ScoredTransactionEvent;
 import com.ringwatch.common.event.ScoringMethod;
 import com.ringwatch.common.event.TransactionRawEvent;
@@ -35,7 +36,8 @@ import org.springframework.kafka.test.utils.KafkaTestUtils;
 @SpringBootTest
 @EmbeddedKafka(
         partitions = 1,
-        topics = {Topics.TRANSACTIONS_RAW, Topics.TRANSACTIONS_SCORED, Topics.TRANSACTIONS_DECIDED})
+        topics = {Topics.TRANSACTIONS_RAW, Topics.TRANSACTIONS_SCORED, Topics.TRANSACTIONS_DECIDED,
+                Topics.TRANSACTIONS_OVERRIDDEN})
 class AuditListenersIntegrationTest {
 
     @Autowired
@@ -82,6 +84,12 @@ class AuditListenersIntegrationTest {
                 DecisionOutcome.APPROVE, "some reason", Instant.now().truncatedTo(ChronoUnit.MILLIS));
     }
 
+    private static DecisionOverriddenEvent overriddenEvent(String transactionId) {
+        return new DecisionOverriddenEvent(
+                transactionId, DecisionOutcome.APPROVE, "confirmed legitimate", "alice",
+                "confirmed legitimate", Instant.now().truncatedTo(ChronoUnit.MILLIS));
+    }
+
     private void awaitEntry(String transactionId, AuditEventType eventType) {
         await().atMost(Duration.ofSeconds(15)).until(() ->
                 auditLogRepository.findByTransactionIdOrderByRecordedAtAsc(transactionId).stream()
@@ -125,22 +133,41 @@ class AuditListenersIntegrationTest {
     }
 
     @Test
+    void overriddenTransactionIsRecordedAsOverriddenWithTheAnalystIdentity() throws Exception {
+        String transactionId = "tx-" + UUID.randomUUID();
+
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_OVERRIDDEN, transactionId, overriddenEvent(transactionId)))
+                .get();
+        producer.flush();
+
+        awaitEntry(transactionId, AuditEventType.OVERRIDDEN);
+        var entry = auditLogRepository.findByTransactionIdOrderByRecordedAtAsc(transactionId).get(0);
+        assertThat(entry.getUserId()).isEqualTo("alice");
+        assertThat(entry.getPayload()).contains("confirmed legitimate");
+    }
+
+    @Test
     void aPoisonPillOnOneTopicDoesNotBlockSubsequentValidMessagesOnAnyTopic() throws Exception {
         String badId = "tx-" + UUID.randomUUID();
         String goodRawId = "tx-" + UUID.randomUUID();
         String goodScoredId = "tx-" + UUID.randomUUID();
         String goodDecidedId = "tx-" + UUID.randomUUID();
+        String goodOverriddenId = "tx-" + UUID.randomUUID();
 
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RAW, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_SCORED, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_DECIDED, badId, "not-a-transaction")).get();
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_OVERRIDDEN, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RAW, goodRawId, rawEvent(goodRawId))).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_SCORED, goodScoredId, scoredEvent(goodScoredId))).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_DECIDED, goodDecidedId, decidedEvent(goodDecidedId))).get();
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_OVERRIDDEN, goodOverriddenId, overriddenEvent(goodOverriddenId)))
+                .get();
         producer.flush();
 
         awaitEntry(goodRawId, AuditEventType.CREATED);
         awaitEntry(goodScoredId, AuditEventType.SCORED);
         awaitEntry(goodDecidedId, AuditEventType.DECIDED);
+        awaitEntry(goodOverriddenId, AuditEventType.OVERRIDDEN);
     }
 }
