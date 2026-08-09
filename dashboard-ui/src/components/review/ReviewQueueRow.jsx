@@ -1,10 +1,11 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { StatusBadge } from './StatusBadge'
+import { StatusBadge } from '@/components/feed/StatusBadge'
+import { Button } from '@/components/ui/button'
 import { formatAmount, formatRiskScore, formatTimestamp, shortenId } from '@/lib/formatters'
 import { rowVariants, staticRowVariants } from '@/lib/motion'
 import { useClickableRow } from '@/hooks/useClickableRow'
 
-export function TransactionRow({ transaction, onClick }) {
+export function ReviewQueueRow({ transaction, onClick }) {
   const prefersReducedMotion = useReducedMotion()
   const rowProps = useClickableRow(transaction, onClick)
 
@@ -32,8 +33,16 @@ export function TransactionRow({ transaction, onClick }) {
       <td className="px-3 py-2 text-right font-mono text-xs text-text-muted">
         {formatRiskScore(transaction.riskScore)}
       </td>
+      <td className="max-w-xs truncate px-3 py-2 text-xs text-text-muted" title={transaction.reason ?? ''}>
+        {transaction.reason ?? '—'}
+      </td>
       <td className="px-3 py-2">
         <StatusBadge outcome={transaction.outcome} />
+      </td>
+      <td className="px-3 py-2">
+        <Button variant="outline" size="sm" disabled title="Coming in a follow-up slice">
+          Override
+        </Button>
       </td>
     </motion.tr>
   )

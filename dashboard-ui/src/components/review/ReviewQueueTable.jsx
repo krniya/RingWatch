@@ -1,39 +1,39 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { Activity } from 'lucide-react'
-import { TransactionRow } from './TransactionRow'
+import { ShieldAlert } from 'lucide-react'
+import { ReviewQueueRow } from './ReviewQueueRow'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { rowContainerVariants, staticRowVariants } from '@/lib/motion'
 
-const COLUMNS = ['Time', 'Transaction', 'Sender', 'Receiver', 'Amount', 'Risk', 'Status']
+const COLUMNS = ['Time', 'Transaction', 'Sender', 'Receiver', 'Amount', 'Risk', 'Reason', 'Status', 'Override']
 
-function FeedTableSkeleton() {
+function ReviewTableSkeleton() {
   return (
     <div className="space-y-2 p-3">
-      {[...Array(6)].map((_, index) => (
+      {[...Array(4)].map((_, index) => (
         <Skeleton key={index} className="h-8 w-full" />
       ))}
     </div>
   )
 }
 
-export function TransactionFeedTable({ transactions, isLoading, isError, onRowClick }) {
+export function ReviewQueueTable({ transactions, isLoading, isError, onRowClick }) {
   const prefersReducedMotion = useReducedMotion()
 
   if (isError) {
-    return <p className="p-6 font-mono text-sm text-block">Failed to load the transaction feed.</p>
+    return <p className="p-6 font-mono text-sm text-block">Failed to load the review queue.</p>
   }
 
   if (isLoading) {
-    return <FeedTableSkeleton />
+    return <ReviewTableSkeleton />
   }
 
   if (transactions.length === 0) {
     return (
       <EmptyState
-        icon={Activity}
-        heading="No transactions yet"
-        description="Submitted transactions will appear here as they move through the pipeline."
+        icon={ShieldAlert}
+        heading="Nothing to review"
+        description="Flagged and blocked transactions from the last 24h will appear here."
       />
     )
   }
@@ -55,11 +55,7 @@ export function TransactionFeedTable({ transactions, isLoading, isError, onRowCl
         variants={prefersReducedMotion ? staticRowVariants : rowContainerVariants}
       >
         {transactions.map((transaction) => (
-          <TransactionRow
-            key={transaction.transactionId}
-            transaction={transaction}
-            onClick={onRowClick}
-          />
+          <ReviewQueueRow key={transaction.transactionId} transaction={transaction} onClick={onRowClick} />
         ))}
       </motion.tbody>
     </table>

@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 
 const NAV_ITEMS = [
   { to: '/feed', label: 'Live Feed', icon: Activity },
-  { to: '/review', label: 'Review Queue', icon: ShieldAlert, disabled: true },
-  { to: '/rings', label: 'Fraud Rings', icon: Network, disabled: true },
+  { to: '/review', label: 'Review Queue', icon: ShieldAlert },
+  { to: '/rings', label: 'Fraud Rings', icon: Network },
 ]
 
 export function Sidebar() {
@@ -20,33 +20,22 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.map(({ to, label, icon: Icon, disabled }) =>
-          disabled ? (
-            <span
-              key={to}
-              className="flex cursor-not-allowed items-center gap-2 px-3 py-2 text-sm text-text-faint"
-              title="Coming in a follow-up slice"
-            >
-              <Icon className="size-4" />
-              {label}
-            </span>
-          ) : (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  isActive
-                    ? 'bg-panel-raised text-text'
-                    : 'text-text-muted hover:bg-panel-raised hover:text-text'
-                }`
-              }
-            >
-              <Icon className="size-4" />
-              {label}
-            </NavLink>
-          ),
-        )}
+        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                isActive
+                  ? 'bg-panel-raised text-text'
+                  : 'text-text-muted hover:bg-panel-raised hover:text-text'
+              }`
+            }
+          >
+            <Icon className="size-4" />
+            {label}
+          </NavLink>
+        ))}
       </nav>
 
       <div className="border-t border-border p-3">
