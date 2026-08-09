@@ -63,3 +63,9 @@ Thumbs.db
 *.bak
 
 ringWatch.md
+
+
+.agents
+.claude
+agent
+skills-lock.json
