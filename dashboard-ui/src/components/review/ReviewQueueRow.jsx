@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { StatusBadge } from '@/components/feed/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { OverrideDialog } from './OverrideDialog'
 import { formatAmount, formatRiskScore, formatTimestamp, shortenId } from '@/lib/formatters'
 import { rowVariants, staticRowVariants } from '@/lib/motion'
 import { useClickableRow } from '@/hooks/useClickableRow'
@@ -8,6 +10,7 @@ import { useClickableRow } from '@/hooks/useClickableRow'
 export function ReviewQueueRow({ transaction, onClick }) {
   const prefersReducedMotion = useReducedMotion()
   const rowProps = useClickableRow(transaction, onClick)
+  const [overrideOpen, setOverrideOpen] = useState(false)
 
   return (
     <motion.tr
@@ -39,10 +42,17 @@ export function ReviewQueueRow({ transaction, onClick }) {
       <td className="px-3 py-2">
         <StatusBadge outcome={transaction.outcome} />
       </td>
-      <td className="px-3 py-2">
-        <Button variant="outline" size="sm" disabled title="Coming in a follow-up slice">
+      <td
+        className="px-3 py-2"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
           Override
         </Button>
+        {overrideOpen && (
+          <OverrideDialog transaction={transaction} open={overrideOpen} onOpenChange={setOverrideOpen} />
+        )}
       </td>
     </motion.tr>
   )

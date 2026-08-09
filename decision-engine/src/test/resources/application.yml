@@ -24,7 +24,15 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 ringwatch:
+  jwt:
+    secret: test-only-secret-key-at-least-32-bytes-long-for-hs256
   decision:
     block-threshold: 0.75
     flag-threshold: 0.40
