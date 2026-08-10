@@ -10,5 +10,6 @@ public enum AuditEventType {
     CREATED,
     SCORED,
     DECIDED,
-    OVERRIDDEN
+    OVERRIDDEN,
+    RECONCILED
 }
