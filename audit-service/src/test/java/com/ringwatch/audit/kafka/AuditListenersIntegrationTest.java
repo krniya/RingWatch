@@ -8,6 +8,7 @@ import com.ringwatch.audit.repository.AuditLogRepository;
 import com.ringwatch.common.event.DecisionEvent;
 import com.ringwatch.common.event.DecisionOutcome;
 import com.ringwatch.common.event.DecisionOverriddenEvent;
+import com.ringwatch.common.event.ReconciliationResultEvent;
 import com.ringwatch.common.event.ScoredTransactionEvent;
 import com.ringwatch.common.event.ScoringMethod;
 import com.ringwatch.common.event.TransactionRawEvent;
@@ -37,7 +38,7 @@ import org.springframework.kafka.test.utils.KafkaTestUtils;
 @EmbeddedKafka(
         partitions = 1,
         topics = {Topics.TRANSACTIONS_RAW, Topics.TRANSACTIONS_SCORED, Topics.TRANSACTIONS_DECIDED,
-                Topics.TRANSACTIONS_OVERRIDDEN})
+                Topics.TRANSACTIONS_OVERRIDDEN, Topics.TRANSACTIONS_RECONCILED})
 class AuditListenersIntegrationTest {
 
     @Autowired
@@ -88,6 +89,13 @@ class AuditListenersIntegrationTest {
         return new DecisionOverriddenEvent(
                 transactionId, DecisionOutcome.APPROVE, "confirmed legitimate", "alice",
                 "confirmed legitimate", Instant.now().truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    private static ReconciliationResultEvent reconciledEvent(String transactionId, boolean drifted) {
+        return new ReconciliationResultEvent(
+                transactionId, DecisionOutcome.APPROVE, drifted ? DecisionOutcome.FLAG : DecisionOutcome.APPROVE,
+                new BigDecimal("0.20"), drifted ? new BigDecimal("0.50") : new BigDecimal("0.20"),
+                "original reason", "new reason", drifted, Instant.now().truncatedTo(ChronoUnit.MILLIS));
     }
 
     private void awaitEntry(String transactionId, AuditEventType eventType) {
@@ -147,21 +155,38 @@ class AuditListenersIntegrationTest {
     }
 
     @Test
+    void reconciledTransactionIsRecordedAsReconciledAgainstTheOriginalTransactionId() throws Exception {
+        String transactionId = "tx-" + UUID.randomUUID();
+
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RECONCILED, transactionId, reconciledEvent(transactionId, true)))
+                .get();
+        producer.flush();
+
+        awaitEntry(transactionId, AuditEventType.RECONCILED);
+        var entry = auditLogRepository.findByTransactionIdOrderByRecordedAtAsc(transactionId).get(0);
+        assertThat(entry.getPayload()).contains("\"drifted\":true");
+    }
+
+    @Test
     void aPoisonPillOnOneTopicDoesNotBlockSubsequentValidMessagesOnAnyTopic() throws Exception {
         String badId = "tx-" + UUID.randomUUID();
         String goodRawId = "tx-" + UUID.randomUUID();
         String goodScoredId = "tx-" + UUID.randomUUID();
         String goodDecidedId = "tx-" + UUID.randomUUID();
         String goodOverriddenId = "tx-" + UUID.randomUUID();
+        String goodReconciledId = "tx-" + UUID.randomUUID();
 
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RAW, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_SCORED, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_DECIDED, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_OVERRIDDEN, badId, "not-a-transaction")).get();
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RECONCILED, badId, "not-a-transaction")).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RAW, goodRawId, rawEvent(goodRawId))).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_SCORED, goodScoredId, scoredEvent(goodScoredId))).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_DECIDED, goodDecidedId, decidedEvent(goodDecidedId))).get();
         producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_OVERRIDDEN, goodOverriddenId, overriddenEvent(goodOverriddenId)))
+                .get();
+        producer.send(new ProducerRecord<>(Topics.TRANSACTIONS_RECONCILED, goodReconciledId, reconciledEvent(goodReconciledId, false)))
                 .get();
         producer.flush();
 
@@ -169,5 +194,6 @@ class AuditListenersIntegrationTest {
         awaitEntry(goodScoredId, AuditEventType.SCORED);
         awaitEntry(goodDecidedId, AuditEventType.DECIDED);
         awaitEntry(goodOverriddenId, AuditEventType.OVERRIDDEN);
+        awaitEntry(goodReconciledId, AuditEventType.RECONCILED);
     }
 }

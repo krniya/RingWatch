@@ -1,0 +1,57 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: reconciliation-service
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: reconciliation-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.ringwatch.common.event
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+
+ringwatch:
+  jwt:
+    secret: ${JWT_SECRET}
+  reconciliation:
+    audit-service:
+      base-url: ${AUDIT_SERVICE_BASE_URL:http://localhost:8087}
+    schedule:
+      interval-ms: ${RECONCILIATION_INTERVAL_MS:21600000}
+    lookback:
+      min-age-ms: ${RECONCILIATION_MIN_AGE_MS:86400000}
+      max-age-ms: ${RECONCILIATION_MAX_AGE_MS:604800000}
+    sample-size: ${RECONCILIATION_SAMPLE_SIZE:50}
+    token-ttl-ms: ${RECONCILIATION_TOKEN_TTL_MS:60000}
+
+resilience4j:
+  retry:
+    instances:
+      auditServiceClient:
+        max-attempts: 3
+        wait-duration: 1s

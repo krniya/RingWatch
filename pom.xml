@@ -30,6 +30,7 @@
         <module>fraud-ring-detection-service</module>
         <module>audit-service</module>
         <module>notification-service</module>
+        <module>reconciliation-service</module>
     </modules>
 
     <dependencyManagement>
