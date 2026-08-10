@@ -5,7 +5,10 @@ import com.ringwatch.common.event.FraudRingEvent;
 import com.ringwatch.common.kafka.Topics;
 import com.ringwatch.fraudring.graph.AccountClusterGraph;
 import com.ringwatch.fraudring.graph.TransactionGraph;
+import com.ringwatch.fraudring.model.FraudRingDetection;
+import com.ringwatch.fraudring.repository.FraudRingDetectionRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -29,16 +32,24 @@ public class FraudRingDetectionService {
     private final TransactionGraph transactionGraph;
     private final RingExplainer ringExplainer;
     private final KafkaTemplate<String, FraudRingEvent> kafkaTemplate;
+    private final FraudRingDetectionRepository fraudRingDetectionRepository;
 
     public FraudRingDetectionService(
             AccountClusterGraph accountClusterGraph,
             TransactionGraph transactionGraph,
             RingExplainer ringExplainer,
-            KafkaTemplate<String, FraudRingEvent> kafkaTemplate) {
+            KafkaTemplate<String, FraudRingEvent> kafkaTemplate,
+            FraudRingDetectionRepository fraudRingDetectionRepository) {
         this.accountClusterGraph = accountClusterGraph;
         this.transactionGraph = transactionGraph;
         this.ringExplainer = ringExplainer;
         this.kafkaTemplate = kafkaTemplate;
+        this.fraudRingDetectionRepository = fraudRingDetectionRepository;
+    }
+
+    /** FR23: the durable, queryable history of every ring detection, newest first. */
+    public List<FraudRingDetection> findRecentDetections() {
+        return fraudRingDetectionRepository.findAllByOrderByDetectedAtDesc();
     }
 
     public void process(EnrichedTransactionEvent event) {
@@ -57,6 +68,7 @@ public class FraudRingDetectionService {
         String explanation = ringExplainer.explain(new RingContext(memberAccountIds, triggerDescription));
         FraudRingEvent ringEvent = new FraudRingEvent(
                 UUID.randomUUID().toString(), memberAccountIds, triggerDescription, explanation, Instant.now());
+        fraudRingDetectionRepository.save(FraudRingDetection.from(ringEvent));
         kafkaTemplate.send(Topics.TRANSACTIONS_RING_FLAGGED, ringEvent.ringId(), ringEvent)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {

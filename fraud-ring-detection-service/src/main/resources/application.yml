@@ -4,6 +4,14 @@ server:
 spring:
   application:
     name: fraud-ring-detection-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ringwatch_fraudring
+    username: ringwatch
+    password: ringwatch
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -37,6 +45,8 @@ management:
       endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
 
 ringwatch:
+  jwt:
+    secret: ${JWT_SECRET}
   fraud-ring:
     min-cluster-size: 3
   ai:

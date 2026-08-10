@@ -24,6 +24,10 @@ spring:
           uri: http://localhost:8087
           predicates:
             - Path=/audit/**
+        - id: fraud-ring-detection-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/fraud-rings/**
       globalcors:
         cors-configurations:
           '[/**]':

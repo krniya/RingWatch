@@ -14,6 +14,8 @@ import com.ringwatch.common.kafka.Topics;
 import com.ringwatch.fraudring.graph.AccountClusterGraph;
 import com.ringwatch.fraudring.graph.ClusterUpdate;
 import com.ringwatch.fraudring.graph.TransactionGraph;
+import com.ringwatch.fraudring.model.FraudRingDetection;
+import com.ringwatch.fraudring.repository.FraudRingDetectionRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -34,6 +36,7 @@ class FraudRingDetectionServiceTest {
     @Mock private TransactionGraph transactionGraph;
     @Mock private RingExplainer ringExplainer;
     @Mock private KafkaTemplate<String, FraudRingEvent> kafkaTemplate;
+    @Mock private FraudRingDetectionRepository fraudRingDetectionRepository;
 
     private FraudRingDetectionService service;
 
@@ -45,7 +48,8 @@ class FraudRingDetectionServiceTest {
 
     @Test
     void clusterUpdateAlonePublishesOneRingEvent() {
-        service = new FraudRingDetectionService(accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate);
+        service = new FraudRingDetectionService(
+                accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate, fraudRingDetectionRepository);
         when(accountClusterGraph.observe(any())).thenReturn(
                 Optional.of(new ClusterUpdate(Set.of("A", "B", "C"), "dev-1", "10.0.0.1")));
         when(transactionGraph.recordTransferAndDetectCycle(any(), any())).thenReturn(Optional.empty());
@@ -58,11 +62,17 @@ class FraudRingDetectionServiceTest {
         verify(kafkaTemplate, times(1)).send(eq(Topics.TRANSACTIONS_RING_FLAGGED), any(), captor.capture());
         assertThat(captor.getValue().memberAccountIds()).containsExactlyInAnyOrder("A", "B", "C");
         assertThat(captor.getValue().aiExplanation()).isEqualTo("explanation");
+
+        ArgumentCaptor<FraudRingDetection> savedCaptor = ArgumentCaptor.forClass(FraudRingDetection.class);
+        verify(fraudRingDetectionRepository, times(1)).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getMemberAccountIds()).containsExactlyInAnyOrder("A", "B", "C");
+        assertThat(savedCaptor.getValue().getAiExplanation()).isEqualTo("explanation");
     }
 
     @Test
     void cycleDetectionAlonePublishesOneRingEvent() {
-        service = new FraudRingDetectionService(accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate);
+        service = new FraudRingDetectionService(
+                accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate, fraudRingDetectionRepository);
         when(accountClusterGraph.observe(any())).thenReturn(Optional.empty());
         when(transactionGraph.recordTransferAndDetectCycle(any(), any()))
                 .thenReturn(Optional.of(List.of("A", "B", "C", "A")));
@@ -75,11 +85,16 @@ class FraudRingDetectionServiceTest {
         verify(kafkaTemplate, times(1)).send(eq(Topics.TRANSACTIONS_RING_FLAGGED), any(), captor.capture());
         assertThat(captor.getValue().memberAccountIds()).containsExactlyInAnyOrder("A", "B", "C");
         assertThat(captor.getValue().sharedAttributes()).contains("Circular fund movement");
+
+        ArgumentCaptor<FraudRingDetection> savedCaptor = ArgumentCaptor.forClass(FraudRingDetection.class);
+        verify(fraudRingDetectionRepository, times(1)).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getSharedAttributes()).contains("Circular fund movement");
     }
 
     @Test
     void bothSignalsFiringPublishesTwoRingEvents() {
-        service = new FraudRingDetectionService(accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate);
+        service = new FraudRingDetectionService(
+                accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate, fraudRingDetectionRepository);
         when(accountClusterGraph.observe(any())).thenReturn(
                 Optional.of(new ClusterUpdate(Set.of("A", "B", "C"), "dev-1", "10.0.0.1")));
         when(transactionGraph.recordTransferAndDetectCycle(any(), any()))
@@ -90,11 +105,13 @@ class FraudRingDetectionServiceTest {
         service.process(event());
 
         verify(kafkaTemplate, times(2)).send(eq(Topics.TRANSACTIONS_RING_FLAGGED), any(), any());
+        verify(fraudRingDetectionRepository, times(2)).save(any());
     }
 
     @Test
     void neitherSignalFiringPublishesNothing() {
-        service = new FraudRingDetectionService(accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate);
+        service = new FraudRingDetectionService(
+                accountClusterGraph, transactionGraph, ringExplainer, kafkaTemplate, fraudRingDetectionRepository);
         when(accountClusterGraph.observe(any())).thenReturn(Optional.empty());
         when(transactionGraph.recordTransferAndDetectCycle(any(), any())).thenReturn(Optional.empty());
 
@@ -102,5 +119,6 @@ class FraudRingDetectionServiceTest {
 
         verify(kafkaTemplate, never()).send(any(), any(), any());
         verify(ringExplainer, never()).explain(any());
+        verify(fraudRingDetectionRepository, never()).save(any());
     }
 }
