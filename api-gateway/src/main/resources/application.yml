@@ -51,7 +51,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus
+        include: health,prometheus,throttled-accounts
   tracing:
     sampling:
       probability: 1.0
@@ -65,3 +65,4 @@ ringwatch:
   rate-limit:
     limit: 20
     window: 10s
+    top-throttled-size: 10

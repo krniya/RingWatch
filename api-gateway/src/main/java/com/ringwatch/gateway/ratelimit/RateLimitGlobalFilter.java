@@ -25,16 +25,21 @@ public class RateLimitGlobalFilter implements GlobalFilter, Ordered {
     private static final String USER_ID_HEADER = "X-User-Id";
 
     private final SlidingWindowRateLimiter rateLimiter;
+    private final ThrottledKeyTracker throttledKeyTracker;
 
     public RateLimitGlobalFilter(
             @Value("${ringwatch.rate-limit.limit}") int limit,
-            @Value("${ringwatch.rate-limit.window}") Duration window) {
+            @Value("${ringwatch.rate-limit.window}") Duration window,
+            ThrottledKeyTracker throttledKeyTracker) {
         this.rateLimiter = new SlidingWindowRateLimiter(limit, window);
+        this.throttledKeyTracker = throttledKeyTracker;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        if (!rateLimiter.tryAcquire(resolveKey(exchange))) {
+        String key = resolveKey(exchange);
+        if (!rateLimiter.tryAcquire(key)) {
+            throttledKeyTracker.recordThrottle(key);
             return reject(exchange);
         }
         return chain.filter(exchange);
