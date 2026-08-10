@@ -3,41 +3,53 @@
 **AI-Augmented Real-Time Fraud & Fraud-Ring Detection Platform**
 
 RingWatch ingests financial transactions in real time, enriches them with historical context,
-scores them for fraud risk using an LLM, detects organized fraud rings using graph algorithms,
-and routes decisions to an audit trail and analyst notifications — all wired together with Kafka
-and observed with OpenTelemetry, Prometheus, and Grafana.
+scores them for fraud risk using an LLM, detects organized fraud rings using graph algorithms, and
+routes decisions to an audit trail and analyst notifications. Analysts work the flagged queue from
+a dedicated dashboard — reviewing the live feed, visualizing detected fraud rings as a graph, and
+overriding a decision when the model got it wrong — while a scheduled job continuously re-checks
+past decisions for model drift. All of it wired together with Kafka and observed with
+OpenTelemetry, Prometheus, and Grafana.
 
 It's a portfolio project combining backend engineering (Spring Boot microservices, Kafka,
 resilience patterns), classic computer science (hand-rolled Union-Find, BFS, min-heap, LRU cache,
-sliding-window rate limiter), and applied AI (LLM-based risk scoring and fraud-ring explanation),
-built one vertical slice at a time.
+sliding-window rate limiter), and applied AI (LLM-based risk scoring and fraud-ring explanation).
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    Client([Client]) -->|POST /auth/login| Gateway[API Gateway :8080]
+    Client([Client / Dashboard]) -->|POST /auth/login| Gateway[API Gateway :8080]
     Client -->|POST /transactions + JWT| Gateway
+    Client -->|POST /transactions/*/override + JWT| Gateway
+    Client -->|GET /fraud-rings + JWT| Gateway
+    Client -->|GET /audit + JWT| Gateway
     Gateway -->|validated JWT + routing| Auth[Auth Service :8081]
     Gateway -->|validated JWT + routing| Ingestion[Ingestion Service :8082]
+    Gateway -->|validated JWT + routing| Decision[Decision Engine :8085]
+    Gateway -->|validated JWT + routing| FraudRing[Fraud Ring Detection Service :8086]
+    Gateway -->|validated JWT + routing| Audit[Audit Service :8087]
 
     Ingestion -->|publish| RAW[(transactions.raw)]
     RAW --> Enrichment[Enrichment Service :8083]
     Enrichment -->|publish| ENRICHED[(transactions.enriched)]
 
     ENRICHED --> Risk[AI Risk Scoring Service :8084]
-    ENRICHED --> FraudRing[Fraud Ring Detection Service :8086]
+    ENRICHED --> FraudRing
 
     Risk -->|publish| SCORED[(transactions.scored)]
     FraudRing -->|publish| RINGFLAGGED[(transactions.ring-flagged)]
+    FraudRing -->|persist| FraudRingDB[(ringwatch_fraudring)]
 
-    SCORED --> Decision[Decision Engine :8085]
+    SCORED --> Decision
     RINGFLAGGED --> Decision
     Decision -->|publish| DECIDED[(transactions.decided)]
+    Decision -->|analyst override, publish| OVERRIDDEN[(transactions.overridden)]
 
-    RAW --> Audit[Audit Service :8087]
+    RAW --> Audit
     SCORED --> Audit
     DECIDED --> Audit
+    OVERRIDDEN --> Audit
+    RECONCILED[(transactions.reconciled)] --> Audit
 
     DECIDED --> Notification[Notification Service :8088]
     RINGFLAGGED --> Notification
@@ -48,7 +60,7 @@ flowchart TD
     FraudRing -.->|LLM call| Anthropic
 
     classDef topic fill:#2d2d2d,stroke:#888,color:#fff
-    class RAW,ENRICHED,SCORED,RINGFLAGGED,DECIDED,ALERTS topic
+    class RAW,ENRICHED,SCORED,RINGFLAGGED,DECIDED,OVERRIDDEN,RECONCILED,ALERTS topic
 ```
 
 Every arrow into/out of a `(topic)` node is Kafka (async, at-least-once, partitioned by
@@ -58,7 +70,38 @@ limiter before forwarding identity downstream via `X-User-Id`/`X-User-Role` head
 
 `transactions.enriched` fans out to two **independent** consumers (AI Risk Scoring and Fraud Ring
 Detection) — they don't depend on each other, and the Decision Engine combines both of their
-outputs (risk score + ring membership) into one APPROVE/FLAG/BLOCK decision.
+outputs (risk score + ring membership) into one APPROVE/FLAG/BLOCK decision. Every event type
+(created, scored, decided, overridden, reconciled) lands in the Audit Service's immutable log
+against its transaction ID, so `GET /audit/{transactionId}` always shows the complete history.
+
+### Reconciliation
+
+A dedicated Reconciliation Service periodically samples past DECIDED transactions from the audit
+log and re-checks them through an **isolated** copy of the scoring/decision pipeline — reusing the
+same scoring and decision logic as the real pipeline, but writing to none of its production
+tables or topics, so a routine drift check can never corrupt live fraud-detection state:
+
+```mermaid
+flowchart LR
+    Reconciliation[Reconciliation Service :8089] -->|GET /audit, self-signed JWT| Audit[Audit Service :8087]
+    Reconciliation -->|publish| REQ[(transactions.reconciliation-scoring-requested)]
+    REQ --> Risk[AI Risk Scoring Service]
+    Risk -->|publish| SCORED2[(transactions.reconciliation-scored)]
+    SCORED2 --> Decision[Decision Engine]
+    Decision -->|publish| DECIDED2[(transactions.reconciliation-decided)]
+    DECIDED2 --> Reconciliation
+    Reconciliation -->|diff vs. original, publish| RECONCILED[(transactions.reconciled)]
+    RECONCILED --> Audit
+
+    classDef topic fill:#2d2d2d,stroke:#888,color:#fff
+    class REQ,SCORED2,DECIDED2,RECONCILED topic
+```
+
+The one exception to "everything cross-service is Kafka" is the Reconciliation Service's read
+call to `GET /audit`: an offline batch job's read, not part of any live/user-facing request, so a
+brief `audit-service` outage just delays that run's sample rather than affecting real-time fraud
+decisioning. It authenticates with a token it self-signs using the same shared `JWT_SECRET` every
+service already trusts.
 
 ### Services
 
@@ -69,10 +112,11 @@ outputs (risk score + ring membership) into one APPROVE/FLAG/BLOCK decision.
 | Ingestion Service | 8082 | Accepts transactions, dedupes, publishes to Kafka | REST + Producer |
 | Enrichment Service | 8083 | Attaches historical account context via a custom LRU cache | Consumer + Producer |
 | AI Risk Scoring Service | 8084 | Calls Claude for a 0–1 fraud risk score + explanation, falls back to rule-based scoring | Consumer + Producer + outbound REST |
-| Decision Engine | 8085 | Combines risk score + ring membership into APPROVE/FLAG/BLOCK, prioritized via a min-heap | Consumer + Producer + DB |
-| Fraud Ring Detection Service | 8086 | Union-Find account clustering + BFS cycle detection, LLM explanation of detected rings | Consumer + Producer + outbound REST |
+| Decision Engine | 8085 | Combines risk score + ring membership into APPROVE/FLAG/BLOCK (prioritized via a min-heap); analyst override endpoint | REST + Consumer + Producer + DB |
+| Fraud Ring Detection Service | 8086 | Union-Find account clustering + BFS cycle detection, LLM explanation of detected rings, persists detections for the dashboard graph | REST + Consumer + Producer + DB + outbound REST |
 | Audit Service | 8087 | Immutable event log + compliance query API | Consumer + REST + DB |
 | Notification Service | 8088 | Email alerts on FLAG/BLOCK/new rings, publishes in-app alert events | Consumer + outbound SMTP |
+| Reconciliation Service | 8089 | Scheduled re-scoring of sampled past decisions to detect model drift or bugs | Scheduler + Consumer + Producer + outbound REST |
 | common-lib | — | Shared Kafka event schemas, topic names, JWT validation | Library (no service) |
 
 ### DSA centerpieces
@@ -97,6 +141,8 @@ Every outbound call to an unreliable external dependency is wrapped in
   breaker + fallback (rule-based scoring / a templated explanation).
 - **Notification Service** → SMTP: retry + fallback (log and move on — a struggling mail server
   never blocks the Kafka consumer thread).
+- **Reconciliation Service** → Audit Service: retry (a failed sampling run is simply retried in
+  full on the next scheduled interval).
 
 ### Observability
 
@@ -140,7 +186,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."   # optional — omit to always use the ru
 
 | Variable | Required by | Default |
 |---|---|---|
-| `JWT_SECRET` | api-gateway, auth-service, ingestion-service, audit-service | — (required) |
+| `JWT_SECRET` | api-gateway, auth-service, ingestion-service, decision-engine, fraud-ring-detection-service, audit-service, reconciliation-service | — (required) |
 | `RINGWATCH_ADMIN_PASSWORD` | auth-service | — (required; seeds the initial ADMIN account) |
 | `RINGWATCH_ADMIN_USERNAME` | auth-service | `admin` |
 | `ANTHROPIC_API_KEY` | ai-risk-scoring-service, fraud-ring-detection-service | empty (LLM calls fail fast → rule-based fallback) |
@@ -148,6 +194,10 @@ export ANTHROPIC_API_KEY="sk-ant-..."   # optional — omit to always use the ru
 | `SMTP_HOST` / `SMTP_PORT` | notification-service | `localhost` / `1025` (point at a local catcher like [MailHog](https://github.com/mailhog/MailHog) or Mailpit) |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_AUTH` / `SMTP_STARTTLS` | notification-service | empty / empty / `false` / `false` |
 | `RINGWATCH_ALERT_RECIPIENTS` | notification-service | `analyst@example.com` (comma-separated) |
+| `AUDIT_SERVICE_BASE_URL` | reconciliation-service | `http://localhost:8087` |
+| `RECONCILIATION_INTERVAL_MS` | reconciliation-service | `21600000` (6h between scheduled runs) |
+| `RECONCILIATION_MIN_AGE_MS` / `RECONCILIATION_MAX_AGE_MS` | reconciliation-service | `86400000` / `604800000` (only re-check decisions 1–7 days old) |
+| `RECONCILIATION_SAMPLE_SIZE` | reconciliation-service | `50` (max decisions re-checked per run) |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | every service | `http://localhost:4318/v1/traces` (Jaeger, from the compose stack above) |
 
 ### 3. Build and run the services
@@ -164,6 +214,7 @@ mvn -pl decision-engine spring-boot:run
 mvn -pl fraud-ring-detection-service spring-boot:run
 mvn -pl audit-service spring-boot:run
 mvn -pl notification-service spring-boot:run
+mvn -pl reconciliation-service spring-boot:run
 ```
 
 There's no fixed startup order requirement — every consumer just waits for messages on its topic,
@@ -186,6 +237,14 @@ curl -X POST http://localhost:8080/transactions \
 
 # Watch it flow through the pipeline
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8087/audit/tx-1
+
+# Override the decision if an analyst disagrees with it
+curl -X POST http://localhost:8080/transactions/tx-1/override \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"outcome":"APPROVE","reason":"confirmed legitimate with the customer"}'
+
+# List detected fraud rings
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/fraud-rings
 ```
 
 ### Observability
@@ -198,7 +257,8 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8087/audit/tx-1
 
 ### 5. Run the dashboard
 
-With `api-gateway`, `auth-service`, and `audit-service` running (step 3 above):
+With `api-gateway`, `auth-service`, `audit-service`, `decision-engine`, and
+`fraud-ring-detection-service` running (step 3 above):
 
 ```bash
 cd dashboard-ui
@@ -206,8 +266,12 @@ npm install
 npm run dev   # http://localhost:5173
 ```
 
-Log in with the seeded admin account (`admin` / `$RINGWATCH_ADMIN_PASSWORD`). See
-[dashboard-ui/README.md](dashboard-ui/README.md) for what's built vs. still planned.
+Log in with the seeded admin account (`admin` / `$RINGWATCH_ADMIN_PASSWORD`). The dashboard
+covers the full analyst workflow: a live transaction feed, a review queue for flagged/blocked
+transactions with a one-click override action, a force-directed graph visualizing detected fraud
+rings, and an audit-trail drawer showing the complete event history for any transaction. The live
+feed and review queue poll the audit log on an interval rather than using a push connection — see
+[dashboard-ui/README.md](dashboard-ui/README.md) for the frontend's own architecture notes.
 
 ## Testing
 
@@ -234,6 +298,7 @@ ringwatch/
 ├── fraud-ring-detection-service/
 ├── audit-service/
 ├── notification-service/
+├── reconciliation-service/
 ├── dashboard-ui/                  analyst frontend (Vite/React, not a Maven module)
 ├── docker/
 │   ├── initdb/                    per-service database creation scripts
@@ -241,10 +306,3 @@ ringwatch/
 │   └── grafana/provisioning/      datasource auto-provisioning
 └── docker-compose.yml             Postgres, Kafka, Jaeger, Prometheus, Grafana
 ```
-
-## Status
-
-Phases 1–4 (foundations, core pipeline, fraud-ring detection, audit/notification/observability)
-are complete. Phase 5 (analyst dashboard UI) is in progress — the shell, login, and live
-transaction feed are built (`dashboard-ui/`); the review queue, override action, and fraud ring
-graph are follow-up slices. Phase 6 (Testcontainers, reconciliation job, load testing) is next.
