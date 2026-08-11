@@ -4,11 +4,12 @@
 
 RingWatch ingests financial transactions in real time, enriches them with historical context,
 scores them for fraud risk using an LLM, detects organized fraud rings using graph algorithms, and
-routes decisions to an audit trail and analyst notifications. Analysts work the flagged queue from
-a dedicated dashboard — reviewing the live feed, visualizing detected fraud rings as a graph, and
-overriding a decision when the model got it wrong — while a scheduled job continuously re-checks
-past decisions for model drift. All of it wired together with Kafka and observed with
-OpenTelemetry, Prometheus, and Grafana.
+routes decisions to an audit trail and analyst notifications — delivered both by email and as live
+in-app toasts pushed over WebSocket. Analysts work the flagged queue from a dedicated dashboard —
+reviewing the live feed, visualizing detected fraud rings as a graph, and overriding a decision
+when the model got it wrong — while a scheduled job continuously re-checks past decisions for
+model drift. All of it wired together with Kafka and observed with OpenTelemetry, Prometheus, and
+Grafana.
 
 It's a portfolio project combining backend engineering (Spring Boot microservices, Kafka,
 resilience patterns), classic computer science (hand-rolled Union-Find, BFS, min-heap, LRU cache,
@@ -23,6 +24,7 @@ flowchart TD
     Client -->|POST /transactions/*/override + JWT| Gateway
     Client -->|GET /fraud-rings + JWT| Gateway
     Client -->|GET /audit + JWT| Gateway
+    Client -->|WebSocket /ws/alerts?token=...| Gateway
     Gateway -->|validated JWT + routing| Auth[Auth Service :8081]
     Gateway -->|validated JWT + routing| Ingestion[Ingestion Service :8082]
     Gateway -->|validated JWT + routing| Decision[Decision Engine :8085]
@@ -55,6 +57,8 @@ flowchart TD
     RINGFLAGGED --> Notification
     Notification -->|SMTP| Email([Analyst email])
     Notification -->|publish| ALERTS[(notifications.alerts)]
+    ALERTS --> DashboardGateway[Dashboard Gateway Service :8091]
+    DashboardGateway -->|broadcast| Gateway
 
     Risk -.->|LLM call| Anthropic([Claude API])
     FraudRing -.->|LLM call| Anthropic
@@ -103,6 +107,18 @@ brief `audit-service` outage just delays that run's sample rather than affecting
 decisioning. It authenticates with a token it self-signs using the same shared `JWT_SECRET` every
 service already trusts.
 
+### Live alerts
+
+The Dashboard Gateway Service consumes `notifications.alerts` and broadcasts every alert to every
+connected analyst browser over a WebSocket at `/ws/alerts`, proxied through the API Gateway (Spring
+Cloud Gateway routes `ws://`/`wss://` route URIs the same way it routes HTTP). A browser's
+`WebSocket` constructor can't set an `Authorization` header on the handshake, so the JWT travels as
+a `?token=` query param instead and is validated by the Dashboard Gateway Service itself at the
+handshake — the same "every service independently re-validates the JWT" model every other service
+already follows, just applied at a connection boundary instead of a request boundary. There's no
+per-analyst targeting or missed-alert catch-up: every connected browser sees every alert, live,
+with the same best-effort delivery guarantee the email channel already has.
+
 ### Services
 
 | Service | Port | Responsibility | Type |
@@ -117,6 +133,7 @@ service already trusts.
 | Audit Service | 8087 | Immutable event log + compliance query API | Consumer + REST + DB |
 | Notification Service | 8088 | Email alerts on FLAG/BLOCK/new rings, publishes in-app alert events | Consumer + outbound SMTP |
 | Reconciliation Service | 8089 | Scheduled re-scoring of sampled past decisions to detect model drift or bugs | Scheduler + Consumer + Producer + outbound REST |
+| Dashboard Gateway Service | 8091 | Broadcasts `notifications.alerts` to connected analyst browsers as live in-app toasts | WebSocket + Consumer |
 | common-lib | — | Shared Kafka event schemas, topic names, JWT validation | Library (no service) |
 
 ### DSA centerpieces
@@ -186,7 +203,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."   # optional — omit to always use the ru
 
 | Variable | Required by | Default |
 |---|---|---|
-| `JWT_SECRET` | api-gateway, auth-service, ingestion-service, decision-engine, fraud-ring-detection-service, audit-service, reconciliation-service | — (required) |
+| `JWT_SECRET` | api-gateway, auth-service, ingestion-service, decision-engine, fraud-ring-detection-service, audit-service, reconciliation-service, dashboard-gateway-service | — (required) |
 | `RINGWATCH_ADMIN_PASSWORD` | auth-service | — (required; seeds the initial ADMIN account) |
 | `RINGWATCH_ADMIN_USERNAME` | auth-service | `admin` |
 | `ANTHROPIC_API_KEY` | ai-risk-scoring-service, fraud-ring-detection-service | empty (LLM calls fail fast → rule-based fallback) |
@@ -198,6 +215,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."   # optional — omit to always use the ru
 | `RECONCILIATION_INTERVAL_MS` | reconciliation-service | `21600000` (6h between scheduled runs) |
 | `RECONCILIATION_MIN_AGE_MS` / `RECONCILIATION_MAX_AGE_MS` | reconciliation-service | `86400000` / `604800000` (only re-check decisions 1–7 days old) |
 | `RECONCILIATION_SAMPLE_SIZE` | reconciliation-service | `50` (max decisions re-checked per run) |
+| `DASHBOARD_ALLOWED_ORIGIN` | dashboard-gateway-service | `http://localhost:5173` (the dashboard's own origin, checked at the WebSocket handshake) |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | every service | `http://localhost:4318/v1/traces` (Jaeger, from the compose stack above) |
 
 ### 3. Build and run the services
@@ -215,6 +233,7 @@ mvn -pl fraud-ring-detection-service spring-boot:run
 mvn -pl audit-service spring-boot:run
 mvn -pl notification-service spring-boot:run
 mvn -pl reconciliation-service spring-boot:run
+mvn -pl dashboard-gateway-service spring-boot:run
 ```
 
 There's no fixed startup order requirement — every consumer just waits for messages on its topic,
@@ -257,8 +276,8 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/fraud-rings
 
 ### 5. Run the dashboard
 
-With `api-gateway`, `auth-service`, `audit-service`, `decision-engine`, and
-`fraud-ring-detection-service` running (step 3 above):
+With `api-gateway`, `auth-service`, `audit-service`, `decision-engine`,
+`fraud-ring-detection-service`, and `dashboard-gateway-service` running (step 3 above):
 
 ```bash
 cd dashboard-ui
@@ -269,9 +288,11 @@ npm run dev   # http://localhost:5173
 Log in with the seeded admin account (`admin` / `$RINGWATCH_ADMIN_PASSWORD`). The dashboard
 covers the full analyst workflow: a live transaction feed, a review queue for flagged/blocked
 transactions with a one-click override action, a force-directed graph visualizing detected fraud
-rings, and an audit-trail drawer showing the complete event history for any transaction. The live
-feed and review queue poll the audit log on an interval rather than using a push connection — see
-[dashboard-ui/README.md](dashboard-ui/README.md) for the frontend's own architecture notes.
+rings, live in-app toasts pushed the moment a transaction is flagged/blocked or a new ring is
+detected, and an audit-trail drawer showing the complete event history for any transaction. The
+feed, review queue, and fraud-rings graph poll their REST endpoints on an interval; only the alert
+toasts are genuinely push-driven — see [dashboard-ui/README.md](dashboard-ui/README.md) for the
+frontend's own architecture notes.
 
 ## Testing
 
@@ -299,6 +320,7 @@ ringwatch/
 ├── audit-service/
 ├── notification-service/
 ├── reconciliation-service/
+├── dashboard-gateway-service/
 ├── dashboard-ui/                  analyst frontend (Vite/React, not a Maven module)
 ├── docker/
 │   ├── initdb/                    per-service database creation scripts

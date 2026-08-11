@@ -1,0 +1,40 @@
+server:
+  port: 8091
+
+spring:
+  application:
+    name: dashboard-gateway-service
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      # A fixed group-id would make Kafka persist committed offsets across restarts, contradicting
+      # the documented "no missed-alert catch-up" design (a restarted instance would replay every
+      # alert published while it was down instead of only live ones). ${random.uuid} (a Spring Boot
+      # built-in property) gives every instance-start its own group, so it never has a committed
+      # offset and auto-offset-reset governs every time - paired with "latest" below.
+      group-id: dashboard-gateway-service-${random.uuid}
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.ringwatch.common.event
+        spring.json.use.type.headers: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+
+ringwatch:
+  jwt:
+    secret: ${JWT_SECRET}
+  dashboard-gateway:
+    allowed-origin: ${DASHBOARD_ALLOWED_ORIGIN:http://localhost:5173}

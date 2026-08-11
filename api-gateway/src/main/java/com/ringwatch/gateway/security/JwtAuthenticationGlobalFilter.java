@@ -21,7 +21,16 @@ import reactor.core.publisher.Mono;
 public class JwtAuthenticationGlobalFilter implements GlobalFilter, Ordered {
 
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final List<String> OPEN_PATHS = List.of("/auth/login");
+    // /ws/alerts: a browser WebSocket handshake can't carry an Authorization header, so this
+    // route's auth is enforced entirely by dashboard-gateway-service's own JwtHandshakeInterceptor
+    // (reading a ?token= query param instead) - consistent with this system's existing "every
+    // service independently re-validates the JWT itself" model, not a new trust assumption. This
+    // filter never rejects requests on this path, but see WS_TOKEN_QUERY_PARAM below - it still
+    // opportunistically sets X-User-Id from that same query param so RateLimitGlobalFilter can key
+    // by analyst rather than falling back to one shared per-IP bucket for every WS handshake.
+    private static final List<String> OPEN_PATHS = List.of("/auth/login", "/ws/alerts");
+    private static final String WS_ALERTS_PATH = "/ws/alerts";
+    private static final String WS_TOKEN_QUERY_PARAM = "token";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_ROLE_HEADER = "X-User-Role";
 
@@ -44,6 +53,9 @@ public class JwtAuthenticationGlobalFilter implements GlobalFilter, Ordered {
         ServerWebExchange strippedExchange = exchange.mutate().request(strippedRequest).build();
 
         if (OPEN_PATHS.contains(strippedRequest.getURI().getPath())) {
+            if (WS_ALERTS_PATH.equals(strippedRequest.getURI().getPath())) {
+                return chain.filter(tagWithUserIdIfTokenValid(strippedExchange, strippedRequest));
+            }
             return chain.filter(strippedExchange);
         }
 
@@ -65,6 +77,28 @@ public class JwtAuthenticationGlobalFilter implements GlobalFilter, Ordered {
             return chain.filter(strippedExchange.mutate().request(authenticatedRequest).build());
         } catch (JwtException | IllegalArgumentException e) {
             return reject(exchange);
+        }
+    }
+
+    // Never rejects: dashboard-gateway-service's own JwtHandshakeInterceptor is the authoritative
+    // enforcer for this route. A missing/invalid token here just leaves X-User-Id unset, and
+    // RateLimitGlobalFilter falls back to its existing per-IP behavior for that one request.
+    private ServerWebExchange tagWithUserIdIfTokenValid(ServerWebExchange exchange, ServerHttpRequest request) {
+        String token = request.getQueryParams().getFirst(WS_TOKEN_QUERY_PARAM);
+        if (token == null) {
+            return exchange;
+        }
+        try {
+            AuthenticatedPrincipal principal = jwtValidator.validate(token);
+            ServerHttpRequest taggedRequest = request.mutate()
+                    .headers(headers -> {
+                        headers.add(USER_ID_HEADER, principal.accountId());
+                        headers.add(USER_ROLE_HEADER, principal.role());
+                    })
+                    .build();
+            return exchange.mutate().request(taggedRequest).build();
+        } catch (JwtException | IllegalArgumentException e) {
+            return exchange;
         }
     }
 

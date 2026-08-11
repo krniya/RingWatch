@@ -28,6 +28,10 @@ spring:
           uri: http://localhost:8086
           predicates:
             - Path=/fraud-rings/**
+        - id: dashboard-gateway-service
+          uri: ws://localhost:8091
+          predicates:
+            - Path=/ws/alerts
       globalcors:
         cors-configurations:
           '[/**]':
