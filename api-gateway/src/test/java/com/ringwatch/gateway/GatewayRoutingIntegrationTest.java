@@ -31,6 +31,7 @@ class GatewayRoutingIntegrationTest {
     private static final AtomicReference<Headers> LAST_AUDIT_REQUEST_HEADERS = new AtomicReference<>();
     private static final AtomicReference<Headers> LAST_OVERRIDE_REQUEST_HEADERS = new AtomicReference<>();
     private static final AtomicReference<Headers> LAST_FRAUD_RINGS_REQUEST_HEADERS = new AtomicReference<>();
+    private static final AtomicReference<Headers> LAST_WS_ALERTS_REQUEST_HEADERS = new AtomicReference<>();
 
     private static final HttpServer AUTH_STUB =
             startStub("/auth/login", "auth-stub-response", LAST_AUTH_REQUEST_HEADERS);
@@ -42,6 +43,8 @@ class GatewayRoutingIntegrationTest {
             startStub("/transactions", "override-stub-response", LAST_OVERRIDE_REQUEST_HEADERS);
     private static final HttpServer FRAUD_RINGS_STUB =
             startStub("/fraud-rings", "fraud-rings-stub-response", LAST_FRAUD_RINGS_REQUEST_HEADERS);
+    private static final HttpServer WS_ALERTS_STUB =
+            startStub("/ws/alerts", "ws-alerts-stub-response", LAST_WS_ALERTS_REQUEST_HEADERS);
 
     @Autowired private WebTestClient webTestClient;
 
@@ -93,6 +96,15 @@ class GatewayRoutingIntegrationTest {
         registry.add("spring.cloud.gateway.routes[4].uri",
                 () -> "http://localhost:" + FRAUD_RINGS_STUB.getAddress().getPort());
         registry.add("spring.cloud.gateway.routes[4].predicates[0]", () -> "Path=/fraud-rings/**");
+
+        // Plain http:// here (not ws://, unlike the real application.yml route) since this test
+        // only exercises the JwtAuthenticationGlobalFilter's OPEN_PATHS bypass via a normal GET,
+        // not a real WebSocket upgrade - Spring Cloud Gateway's own ws:// proxying is an
+        // already-established framework feature this test isn't re-proving.
+        registry.add("spring.cloud.gateway.routes[5].id", () -> "dashboard-gateway-service");
+        registry.add("spring.cloud.gateway.routes[5].uri",
+                () -> "http://localhost:" + WS_ALERTS_STUB.getAddress().getPort());
+        registry.add("spring.cloud.gateway.routes[5].predicates[0]", () -> "Path=/ws/alerts");
     }
 
     @AfterAll
@@ -102,6 +114,7 @@ class GatewayRoutingIntegrationTest {
         AUDIT_STUB.stop(0);
         DECISION_OVERRIDE_STUB.stop(0);
         FRAUD_RINGS_STUB.stop(0);
+        WS_ALERTS_STUB.stop(0);
     }
 
     private String validToken() {
@@ -268,6 +281,14 @@ class GatewayRoutingIntegrationTest {
         webTestClient.get().uri("/fraud-rings")
                 .exchange()
                 .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void webSocketAlertsRouteIsOpenAndDoesNotRequireAToken() {
+        webTestClient.get().uri("/ws/alerts")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).isEqualTo("ws-alerts-stub-response");
     }
 
     private static void assertThatHeaderHasSingleValue(Headers headers, String name, String expectedValue) {
