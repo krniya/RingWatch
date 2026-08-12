@@ -1,6 +1,13 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,throttledAccounts
+
 ringwatch:
   jwt:
     secret: test-only-secret-key-at-least-32-bytes-long-for-hs256
   rate-limit:
     limit: 100
     window: 60s
+    top-throttled-size: 10

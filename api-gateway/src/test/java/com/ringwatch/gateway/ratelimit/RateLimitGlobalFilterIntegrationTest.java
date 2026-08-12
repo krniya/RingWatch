@@ -100,6 +100,24 @@ class RateLimitGlobalFilterIntegrationTest {
     }
 
     @Test
+    void aThrottledAccountShowsUpInTheThrottledAccountsActuatorEndpoint() {
+        String accountId = "throttle-monitor-test-account";
+        String token = "Bearer " + validToken(accountId);
+
+        webTestClient.get().uri("/transactions").header("Authorization", token).exchange().expectStatus().isOk();
+        webTestClient.get().uri("/transactions").header("Authorization", token).exchange().expectStatus().isOk();
+        webTestClient.get().uri("/transactions").header("Authorization", token).exchange()
+                .expectStatus().isEqualTo(429);
+        webTestClient.get().uri("/transactions").header("Authorization", token).exchange()
+                .expectStatus().isEqualTo(429);
+
+        webTestClient.get().uri("/actuator/throttledAccounts").exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[?(@.key == 'user:" + accountId + "')].count").isEqualTo(2);
+    }
+
+    @Test
     void differentAccountsAreRateLimitedIndependently() {
         String tokenA = "Bearer " + validToken("account-a");
         String tokenB = "Bearer " + validToken("account-b");
