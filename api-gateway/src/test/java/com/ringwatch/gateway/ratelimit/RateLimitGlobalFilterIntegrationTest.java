@@ -111,7 +111,7 @@ class RateLimitGlobalFilterIntegrationTest {
         webTestClient.get().uri("/transactions").header("Authorization", token).exchange()
                 .expectStatus().isEqualTo(429);
 
-        webTestClient.get().uri("/actuator/throttled-accounts").exchange()
+        webTestClient.get().uri("/actuator/throttledAccounts").exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$[?(@.key == 'user:" + accountId + "')].count").isEqualTo(2);

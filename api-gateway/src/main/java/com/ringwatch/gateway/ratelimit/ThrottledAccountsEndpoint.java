@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
  * whoever can reach the gateway" trust model, not a gap unique to this endpoint.
  */
 @Component
-@Endpoint(id = "throttled-accounts")
+@Endpoint(id = "throttledAccounts")
 public class ThrottledAccountsEndpoint {
 
     private final ThrottledKeyTracker tracker;

@@ -2,7 +2,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus,throttled-accounts
+        include: health,prometheus,throttledAccounts
 
 ringwatch:
   jwt:
