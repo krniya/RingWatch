@@ -1,8 +1,9 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { StatusBadge } from './StatusBadge'
-import { formatAmount, formatRiskScore, formatTimestamp, shortenId } from '@/lib/formatters'
+import { formatAmount, formatRiskScore, formatTimestamp } from '@/lib/formatters'
 import { rowVariants, staticRowVariants } from '@/lib/motion'
 import { useClickableRow } from '@/hooks/useClickableRow'
+import { TruncatedIdCell } from '@/components/shared/TruncatedIdCell'
 
 export function TransactionRow({ transaction, onClick }) {
   const prefersReducedMotion = useReducedMotion()
@@ -19,13 +20,9 @@ export function TransactionRow({ transaction, onClick }) {
       <td className="px-3 py-2 font-mono text-xs text-text-muted">
         {formatTimestamp(transaction.lastEventAt)}
       </td>
-      <td className="px-3 py-2 font-mono text-xs text-text">{shortenId(transaction.transactionId)}</td>
-      <td className="px-3 py-2 font-mono text-xs text-text-muted">
-        {shortenId(transaction.senderAccountId)}
-      </td>
-      <td className="px-3 py-2 font-mono text-xs text-text-muted">
-        {shortenId(transaction.receiverAccountId)}
-      </td>
+      <TruncatedIdCell value={transaction.transactionId} maxWidth={180} tone="text-text" />
+      <TruncatedIdCell value={transaction.senderAccountId} />
+      <TruncatedIdCell value={transaction.receiverAccountId} />
       <td className="px-3 py-2 text-right font-mono text-xs text-text">
         {formatAmount(transaction.amount, transaction.currency)}
       </td>

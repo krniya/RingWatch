@@ -2,6 +2,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router
 import { useAuth } from '@/context/AuthContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { LoginPage } from '@/pages/LoginPage'
+import { OverviewPage } from '@/pages/OverviewPage'
 import { FeedPage } from '@/pages/FeedPage'
 import { ReviewQueuePage } from '@/pages/ReviewQueuePage'
 import { FraudRingsPage } from '@/pages/FraudRingsPage'
@@ -25,11 +26,12 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', element: <Navigate to="/feed" replace /> },
+          { path: '/', element: <Navigate to="/overview" replace /> },
+          { path: '/overview', element: <OverviewPage /> },
           { path: '/feed', element: <FeedPage /> },
           { path: '/review', element: <ReviewQueuePage /> },
           { path: '/rings', element: <FraudRingsPage /> },
-          { path: '*', element: <Navigate to="/feed" replace /> },
+          { path: '*', element: <Navigate to="/overview" replace /> },
         ],
       },
     ],

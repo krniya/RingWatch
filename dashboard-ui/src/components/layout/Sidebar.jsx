@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, LogOut, Network, ShieldAlert } from 'lucide-react'
+import { Activity, LayoutDashboard, LogOut, Network, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 
 const NAV_ITEMS = [
+  { to: '/overview', label: 'Overview', icon: LayoutDashboard },
   { to: '/feed', label: 'Live Feed', icon: Activity },
   { to: '/review', label: 'Review Queue', icon: ShieldAlert },
   { to: '/rings', label: 'Fraud Rings', icon: Network },

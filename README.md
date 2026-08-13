@@ -15,6 +15,16 @@ It's a portfolio project combining backend engineering (Spring Boot microservice
 resilience patterns), classic computer science (hand-rolled Union-Find, BFS, min-heap, LRU cache,
 sliding-window rate limiter), and applied AI (LLM-based risk scoring and fraud-ring explanation).
 
+## Screenshots
+
+| Overview | Live Feed |
+|---|---|
+| ![Overview](docs/screenshots/overview.jpg) | ![Live Feed](docs/screenshots/live-feed.jpg) |
+
+| Review Queue | Fraud Rings |
+|---|---|
+| ![Review Queue](docs/screenshots/review-queue.jpg) | ![Fraud Rings](docs/screenshots/fraud-rings.jpg) |
+
 ## Architecture
 
 ```mermaid
