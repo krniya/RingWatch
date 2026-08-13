@@ -52,6 +52,14 @@ management:
     web:
       exposure:
         include: health,prometheus,throttledAccounts
+      # Actuator endpoints aren't reached through a Gateway Route (see ThrottledAccountsEndpoint's
+      # Javadoc), so spring.cloud.gateway.globalcors above - which only answers CORS preflights for
+      # matched routes - never covers them. Actuator's own dedicated CORS properties are the
+      # documented mechanism for this exact gap.
+      cors:
+        allowed-origins: http://localhost:5173
+        allowed-methods: GET
+        allowed-headers: Authorization,Content-Type
   tracing:
     sampling:
       probability: 1.0

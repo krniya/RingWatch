@@ -13,7 +13,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (isAuthenticated) {
-    return <Navigate to={location.state?.from ?? '/feed'} replace />
+    return <Navigate to={location.state?.from ?? '/overview'} replace />
   }
 
   async function handleSubmit(event) {
