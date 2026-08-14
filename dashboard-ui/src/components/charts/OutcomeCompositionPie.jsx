@@ -7,7 +7,7 @@ import { PieChart as PieChartIcon } from 'lucide-react'
 
 const SLICE_COLOR = { APPROVE: CHART_COLORS.approve, FLAG: CHART_COLORS.flag, BLOCK: CHART_COLORS.block }
 
-export function OutcomeCompositionPie({ data, isLoading }) {
+export function OutcomeCompositionPie({ data, isLoading, rangeLabel }) {
   if (!isLoading && data.length === 0) {
     return (
       <div className="flex h-full flex-col rounded-panel border border-border bg-panel px-4 py-3 shadow-elevation-2">
@@ -18,7 +18,7 @@ export function OutcomeCompositionPie({ data, isLoading }) {
   }
 
   return (
-    <ChartPanel title="Outcome Composition" subtitle="Share of decisions, last 24h" isLoading={isLoading}>
+    <ChartPanel title="Outcome Composition" subtitle={`Share of decisions, ${rangeLabel}`} isLoading={isLoading}>
       <PieChart>
         <Tooltip content={<ChartTooltip />} />
         <Pie data={data} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} strokeWidth={0}>
