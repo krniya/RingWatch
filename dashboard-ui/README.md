@@ -31,6 +31,12 @@ to `ws://localhost:8080` (the gateway too); override with `VITE_WS_BASE_URL` if 
   holds a WebSocket to dashboard-gateway-service's `/ws/alerts`, which broadcasts every
   `notifications.alerts` Kafka event (new FLAG/BLOCK decisions, newly detected fraud rings) as an
   in-app toast in real time
+- Overview page (`OverviewPage`, the landing page at `/`): stat tiles and trend charts (decision
+  outcomes, transaction volume, fraud-ring detections, reconciliation drift, outcome composition)
+  over a `TimeRangeSelector`-driven window (1H/24H/7D/30D). `useTransactionTrends` refetches
+  `GET /audit` per selected window (`['audit-log', 'trends', windowMs]` query key) and
+  `lib/analytics.js` buckets the results at a granularity that scales with the window — 5-minute
+  buckets at 1H, hourly up to 48h, daily beyond that — so no range ever collapses to a single bar
 - Live transaction feed (`FeedPage`): polls `GET /audit` every 5s (via the gateway's `/audit/**`
   route) on a rolling 6h window, folding the audit-event log into one row per transaction
 - Review queue (`ReviewQueuePage`): polls the audit log for flagged/blocked transactions over a

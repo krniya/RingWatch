@@ -296,13 +296,14 @@ npm run dev   # http://localhost:5173
 ```
 
 Log in with the seeded admin account (`admin` / `$RINGWATCH_ADMIN_PASSWORD`). The dashboard
-covers the full analyst workflow: a live transaction feed, a review queue for flagged/blocked
-transactions with a one-click override action, a force-directed graph visualizing detected fraud
-rings, live in-app toasts pushed the moment a transaction is flagged/blocked or a new ring is
-detected, and an audit-trail drawer showing the complete event history for any transaction. The
-feed, review queue, and fraud-rings graph poll their REST endpoints on an interval; only the alert
-toasts are genuinely push-driven — see [dashboard-ui/README.md](dashboard-ui/README.md) for the
-frontend's own architecture notes.
+covers the full analyst workflow: an Overview page with trend charts (outcomes, volume, fraud-ring
+detections, reconciliation drift) over a selectable 1H/24H/7D/30D window, a live transaction feed,
+a review queue for flagged/blocked transactions with a one-click override action, a force-directed
+graph visualizing detected fraud rings, live in-app toasts pushed the moment a transaction is
+flagged/blocked or a new ring is detected, and an audit-trail drawer showing the complete event
+history for any transaction. The Overview charts, feed, review queue, and fraud-rings graph poll
+their REST endpoints on an interval; only the alert toasts are genuinely push-driven — see
+[dashboard-ui/README.md](dashboard-ui/README.md) for the frontend's own architecture notes.
 
 ## Testing
 
